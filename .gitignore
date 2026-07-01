@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Database
+dni_voice_agent.db
+
+# LiveKit recordings
+recordings/
+
+# Environment Variables
+.env
+
+# Editor
+.vscode/
+.idea/

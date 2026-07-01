@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7
+    restart: always
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+  livekit-server:
+    image: livekit/livekit-server:latest
+    command: --config /etc/livekit.yaml --node-ip host.docker.internal
+    restart: unless-stopped
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50010:50000-50010/udp"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml
+    depends_on:
+      - redis
+
+  livekit-egress:
+    image: livekit/egress:latest
+    restart: unless-stopped
+    network_mode: "service:livekit-server"
+    environment:
+      - EGRESS_CONFIG_FILE=/etc/egress.yaml
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml
+      - ./recordings:/out
+    depends_on:
+      - livekit-server
+      - redis

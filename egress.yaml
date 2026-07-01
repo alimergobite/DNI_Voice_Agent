@@ -1,0 +1,6 @@
+api_key: DNI_LIVEKIT_KEY
+api_secret: DNI_LIVEKIT_SECRET_THAT_IS_LONG_ENOUGH_FOR_SECURITY
+ws_url: ws://127.0.0.1:7880
+redis:
+  address: redis:6379
+insecure: true
