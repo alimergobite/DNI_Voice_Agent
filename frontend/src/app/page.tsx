@@ -152,7 +152,7 @@ function TranscriptBox() {
 
 // ─── New Call Form Modal ──────────────────────────────────────────────────────
 function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallStart: (token: string) => void }) {
-  const [form, setForm] = useState<FormData>({ policyType: "individual", phone: "", contactName: "", dateOfBirth: "", emiratesId: "", companyName: "", tradeLicence: "", elevenlabsApiKey: "sk_5193c1d74c806d579130b4e92993bfa8a484a2d2fc86f004" });
+  const [form, setForm] = useState<FormData>({ policyType: "individual", phone: "", contactName: "", dateOfBirth: "", emiratesId: "", companyName: "", tradeLicence: "", ttsProvider: "elevenlabs" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -171,7 +171,7 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
         company_name: form.companyName,
         trade_licence: form.tradeLicence,
         phone: form.phone,
-        elevenlabs_api_key: form.elevenlabsApiKey,
+        tts_provider: form.ttsProvider,
       };
       const res = await fetch("/api/token", {
         method: "POST",
@@ -259,13 +259,13 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
             </div>
           )}
 
-          {/* API Key Selector */}
+          {/* TTS Provider */}
           <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Voice API Key (ElevenLabs)</label>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Select Provider</label>
             <div className="relative">
-              <select value={form.elevenlabsApiKey} onChange={e => update("elevenlabsApiKey", e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-10 text-slate-800 font-medium appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
-                <option value="sk_5193c1d74c806d579130b4e92993bfa8a484a2d2fc86f004">New Key (sk_5193c...)</option>
-                <option value="9cbe813e5f7ff4d4e69d52455fd1f026d476b58df1bbea8460e3b1d86f8fba55">Morning Key (9cbe81...)</option>
+              <select value={form.ttsProvider} onChange={e => update("ttsProvider", e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-10 text-slate-800 font-medium appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
+                <option value="elevenlabs">ElevenLabs (Archana Voice)</option>
+                <option value="sarvam">Sarvam (Simran)</option>
               </select>
               <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                 <ChevronDown size={16} />
@@ -512,7 +512,7 @@ function CallDetailsModal({ call, onClose }: { call: CallLog; onClose: () => voi
               {call.recording_url ? (
                 <div className="w-full max-w-md">
                   <p className="text-sm font-medium text-slate-700 mb-4">Playback Call Recording</p>
-                  <audio controls className="w-full" src={call.recording_url}>
+                  <audio controls className="w-full" src={call.recording_url.startsWith("http") ? call.recording_url : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${call.recording_url}`}>
                     Your browser does not support the audio element.
                   </audio>
                 </div>
