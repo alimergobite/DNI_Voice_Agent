@@ -1,13 +1,19 @@
-from livekit.plugins import elevenlabs
+from livekit.plugins import elevenlabs, sarvam
 from backend.config import settings
 
-def get_tts_engine(api_key_override: str = None):
+def get_tts_engine(provider: str = "elevenlabs"):
     """
-    Returns the configured Text-to-Speech engine.
-    Currently using ElevenLabs.
+    Returns the configured Text-to-Speech engine dynamically.
     """
-    return elevenlabs.TTS(
-        api_key=api_key_override or settings.ELEVENLABS_API_KEY, 
-        model="eleven_turbo_v2_5",
-        voice_id=settings.ELEVENLABS_VOICE_ID
-    )
+    if provider == "sarvam":
+        return sarvam.TTS(
+            api_key=settings.SARVAM_API_KEY,
+            speaker="simran" # Using Simran by default as requested
+        )
+    else:
+        # Default to ElevenLabs
+        return elevenlabs.TTS(
+            api_key=settings.ELEVENLABS_API_KEY, 
+            model="eleven_turbo_v2_5",
+            voice_id=settings.ELEVENLABS_VOICE_ID
+        )

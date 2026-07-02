@@ -295,7 +295,7 @@ export default function Home() {
 
   const fetchCalls = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/calls");
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/calls`);
       if (res.ok) {
         const data = await res.json();
         const formattedCalls = data.map((call: any) => ({

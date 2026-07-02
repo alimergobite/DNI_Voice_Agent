@@ -52,22 +52,27 @@ async def process_call_log(session: AgentSession, customer_name: str, policy_typ
             '  "sentiment": "Positive, Negative, or Neutral",\n'
             '  "rating": "number 1-10 or null if not mentioned",\n'
             '  "kyc_verified": "true or false",\n'
+            '  "status": "Must be exactly one of: \'Completed\', \'Abandoned\', \'Not Answered\', \'Wrong Person\', or \'Callback Requested\'. If someone else answers and says the person is not there, output \'Wrong Person\'. If they ask to call back later, output \'Callback Requested\'. If the customer hung up mid-conversation, output \'Abandoned\'. If they never spoke, output \'Not Answered\'. If the call finished its logical flow, output \'Completed\'.",\n'
             '  "summary": "short 2-sentence summary"\n'
             "}\n\n"
             f"Transcript:\n{transcript}"
         )
 
         def _call():
-            response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+            response = client.models.generate_content(
+                model="gemini-2.5-flash", 
+                contents=prompt + "\n\nCRITICAL: Return ONLY raw JSON without any markdown code blocks (e.g. no ```json)."
+            )
             return response.text
 
         result = await asyncio.to_thread(_call)
         # Parse JSON
         extracted = {}
         try:
-            extracted = json.loads(result)
-        except:
-            print("[Call Logging Warning] Failed to parse Gemini JSON output")
+            clean_result = result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            extracted = json.loads(clean_result)
+        except Exception as e:
+            print(f"[Call Logging Warning] Failed to parse Gemini JSON output: {e}\nRaw output: {result}")
 
         log_data = {
             "timestamp": int(time.time()),
@@ -87,7 +92,7 @@ async def process_call_log(session: AgentSession, customer_name: str, policy_typ
                 policy_type=policy_type,
                 duration_seconds=int(time.time() - getattr(session, 'start_time', time.time() - 120)),
                 rating=float(extracted.get("rating")) if str(extracted.get("rating")).replace('.','',1).isdigit() else None,
-                status="Completed",
+                status=extracted.get("status", "Completed"),
                 transcript=transcript,
                 recording_url=getattr(session, 'recording_url', None)
             )
@@ -115,18 +120,19 @@ async def process_call_log(session: AgentSession, customer_name: str, policy_typ
 async def entrypoint(ctx: JobContext):
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
-    # The frontend sets metadata on the participant's token, not the room itself.
+    # Wait for the human participant to connect so we can read their metadata
+    participant = await ctx.wait_for_participant()
+    
     metadata = {}
-    for p in ctx.room.remote_participants.values():
-        if p.metadata:
-            try:
-                metadata = json.loads(p.metadata)
-                break
-            except Exception:
-                pass
+    if participant.metadata:
+        try:
+            metadata = json.loads(participant.metadata)
+        except Exception:
+            pass
 
     customer_name = metadata.get("customer_name", "Valued Customer")
     policy_type = metadata.get("policy_type", "individual")
+    tts_provider = metadata.get("tts_provider", "elevenlabs")
 
     instructions = get_outbound_prompt(customer_name, policy_type, metadata)
     greeting_text = f"Hi, this is Aisha from Dubai National Insurance. Am I speaking with {customer_name}?"
@@ -134,7 +140,7 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession(
         stt=get_stt_engine(),
         llm=get_llm_engine(),
-        tts=get_tts_engine(api_key_override=metadata.get("elevenlabs_api_key")),
+        tts=get_tts_engine(tts_provider),
         vad=silero.VAD.load(
             activation_threshold=0.5,
             min_speech_duration=0.3,
@@ -162,7 +168,7 @@ async def entrypoint(ctx: JobContext):
                 layout="speaker"
             )
             await api.egress.start_room_composite_egress(request)
-            session.recording_url = f"http://localhost:8000/recordings/{ctx.room.name}.mp4"
+            session.recording_url = f"/recordings/{ctx.room.name}.mp4"
             print(f"[Recording] Started recording: {session.recording_url}")
             await api.aclose()
         except Exception as e:
