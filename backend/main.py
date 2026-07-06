@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()  # Load .env before anything else
+
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -40,5 +43,5 @@ async def get_token(room_name: str, participant_name: str):
     """Generate a LiveKit token for the frontend"""
     token = api.AccessToken(settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
     token.with_identity(participant_name).with_name(participant_name)
-    token.with_grants(api.VideoGrants(roomJoin=True, room=room_name))
+    token.with_grants(api.VideoGrants(room_join=True, room=room_name))
     return {"token": token.to_jwt()}

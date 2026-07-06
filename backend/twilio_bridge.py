@@ -61,7 +61,7 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
         from livekit import api
         token = api.AccessToken(settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
         token.with_identity(f"phone_{room_name}").with_name("Customer Phone")
-        token.with_grants(api.VideoGrants(roomJoin=True, room=room_name))
+        token.with_grants(api.VideoGrants(room_join=True, room=room_name))
         jwt_token = token.to_jwt()
         
         # Connect to LiveKit
