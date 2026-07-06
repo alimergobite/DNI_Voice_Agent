@@ -115,13 +115,22 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
             async for event in audio_stream:
                 if stream_sid_box["sid"] is None:
                     continue
-                # event.frame is rtc.AudioFrame (PCM 16-bit). Usually 48000Hz from LiveKit.
-                # 1. Resample to 8000Hz
+                # event.frame is rtc.AudioFrame (PCM 16-bit).
                 pcm_data = event.frame.data.tobytes()
-                resampled_pcm, state = audioop.ratecv(pcm_data, 2, event.frame.num_channels, event.frame.sample_rate, 8000, state)
-                # 2. Encode to mulaw
+                
+                # 1. Convert to mono if it is stereo
+                channels = event.frame.num_channels
+                if channels > 1:
+                    pcm_data = audioop.tomono(pcm_data, 2, 0.5, 0.5)
+                    channels = 1
+                    
+                # 2. Resample to 8000Hz
+                resampled_pcm, state = audioop.ratecv(pcm_data, 2, channels, event.frame.sample_rate, 8000, state)
+                
+                # 3. Encode to mulaw
                 mulaw_data = audioop.lin2ulaw(resampled_pcm, 2)
-                # 3. Base64 encode and send
+                
+                # 4. Base64 encode and send
                 payload = base64.b64encode(mulaw_data).decode('utf-8')
                 media_msg = {
                     "event": "media",
