@@ -85,7 +85,6 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
           onDisconnected={onEnd}
           audio={true}
           className="w-full flex flex-col items-center"
-          options={{ rtcConfig: { iceTransportPolicy: 'relay' } }}
         >
           <RoomAudioRenderer />
           <AgentVisualizer />
