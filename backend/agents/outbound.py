@@ -88,8 +88,12 @@ async def process_call_log(session: AgentSession, customer_name: str, policy_typ
             db_log = CallLog(
                 call_id=f"temp-{log_data['timestamp']}",
                 customer_name=customer_name,
-                phone_number=metadata.get("phone", "+971 00 000 0000") if 'metadata' in locals() else "+971 00 000 0000",
+                phone_number=_last_metadata.get("phone", "+971 00 000 0000") if '_last_metadata' in globals() else "+971 00 000 0000",
                 policy_type=policy_type,
+                date_of_birth=_last_metadata.get("date_of_birth") if '_last_metadata' in globals() else None,
+                emirates_id=_last_metadata.get("emirates_id") if '_last_metadata' in globals() else None,
+                company_name=_last_metadata.get("company_name") if '_last_metadata' in globals() else None,
+                trade_licence=_last_metadata.get("trade_licence") if '_last_metadata' in globals() else None,
                 duration_seconds=int(time.time() - getattr(session, 'start_time', time.time() - 120)),
                 rating=float(extracted.get("rating")) if str(extracted.get("rating")).replace('.','',1).isdigit() else None,
                 status=extracted.get("status", "Completed"),
@@ -142,9 +146,9 @@ async def entrypoint(ctx: JobContext):
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
         vad=silero.VAD.load(
-            activation_threshold=0.5,
+            activation_threshold=0.6,
             min_speech_duration=0.3,
-            min_silence_duration=0.6,
+            min_silence_duration=0.4,
         ),
     )
     
@@ -165,17 +169,17 @@ async def entrypoint(ctx: JobContext):
             request = RoomCompositeEgressRequest(
                 room_name=ctx.room.name,
                 file=output,
-                layout="speaker"
+                layout="speaker-dark",
+                audio_only=True
             )
-            await api.egress.start_room_composite_egress(request)
-            session.recording_url = f"/recordings/{ctx.room.name}.mp4"
-            print(f"[Recording] Started recording: {session.recording_url}")
+            # await api.egress.start_room_composite_egress(request)
+            # session.recording_url = f"/recordings/{ctx.room.name}.mp4"
             await api.aclose()
         except Exception as e:
             print(f"[Recording Error] Failed to start egress: {e}")
             session.recording_url = None
 
-    asyncio.create_task(start_recording())
+    # asyncio.create_task(start_recording())
 
     ctx.room.on(
         "disconnected",

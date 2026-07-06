@@ -21,6 +21,10 @@ interface CallLog {
   customer_name: string;
   phone: string;
   policy_type: string;
+  date_of_birth: string | null;
+  emirates_id: string | null;
+  company_name: string | null;
+  trade_licence: string | null;
   date: string;
   duration: string;
   rating: string | null;
@@ -38,6 +42,7 @@ interface FormData {
   companyName: string;
   tradeLicence: string;
   elevenlabsApiKey: string;
+  ttsProvider: string;
 }
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
@@ -80,6 +85,7 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
           onDisconnected={onEnd}
           audio={true}
           className="w-full flex flex-col items-center"
+          options={{ rtcConfig: { iceTransportPolicy: 'relay' } }}
         >
           <RoomAudioRenderer />
           <AgentVisualizer />
@@ -150,9 +156,123 @@ function TranscriptBox() {
   );
 }
 
+
+// ─── Quick Contact Type ───────────────────────────────────────────────────────
+interface QuickContact {
+  name: string;
+  phone: string;
+  policyType: "individual" | "corporate";
+  dateOfBirth: string;
+  emiratesId: string;
+  companyName: string;
+  tradeLicence: string;
+}
+
+// ─── Quick Contact Data ───────────────────────────────────────────────────────
+const DEMO_CONTACT: QuickContact = {
+  name: "Ahmed Al Mansoori",
+  phone: "+971 50 123 4567",
+  policyType: "individual",
+  dateOfBirth: "1990-02-03",
+  emiratesId: "5678",
+  companyName: "",
+  tradeLicence: "",
+};
+
+// ─── Quick Call TTS Modal ─────────────────────────────────────────────────────
+function QuickCallModal({ contact, onClose, onCallStart }: {
+  contact: QuickContact;
+  onClose: () => void;
+  onCallStart: (token: string) => void;
+}) {
+  const [ttsProvider, setTtsProvider] = useState("elevenlabs");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleQuickCall() {
+    setLoading(true); setError("");
+    try {
+      const roomName = `dni-outbound-${Date.now()}`;
+      const metadata = {
+        customer_name: contact.name,
+        policy_type: contact.policyType,
+        date_of_birth: contact.dateOfBirth,
+        emirates_id: contact.emiratesId,
+        company_name: contact.companyName,
+        trade_licence: contact.tradeLicence,
+        phone: contact.phone,
+        tts_provider: ttsProvider,
+      };
+      const res = await fetch("/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomName, participantName: "Operator", metadata }),
+      });
+      const data = await res.json();
+      if (data.token) { onClose(); onCallStart(data.token); }
+      else { setError(data.error || "Failed to start call."); }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
+        <div className="px-7 pt-7 pb-2">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-xl font-bold text-slate-900">Quick Call</h2>
+            <button onClick={onClose} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors">
+              <X size={16} />
+            </button>
+          </div>
+          <p className="text-sm text-slate-500 mb-4">Calling <span className="font-semibold text-slate-700">{contact.name}</span></p>
+        </div>
+        <div className="px-7 pb-7 space-y-4">
+          {/* TTS Provider */}
+          <div>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Select Voice</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setTtsProvider("elevenlabs")}
+                className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+                  ttsProvider === "elevenlabs"
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                    : "border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}
+              >
+                🎙 ElevenLabs
+              </button>
+              <button
+                onClick={() => setTtsProvider("sarvam")}
+                className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+                  ttsProvider === "sarvam"
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                    : "border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}
+              >
+                🎙 Sarvam
+              </button>
+            </div>
+          </div>
+          {error && <p className="text-sm text-rose-500">{error}</p>}
+          <button
+            onClick={handleQuickCall}
+            disabled={loading}
+            className="w-full py-3 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <Phone size={18} /> {loading ? "Connecting…" : "Start Call"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── New Call Form Modal ──────────────────────────────────────────────────────
 function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallStart: (token: string) => void }) {
-  const [form, setForm] = useState<FormData>({ policyType: "individual", phone: "", contactName: "", dateOfBirth: "", emiratesId: "", companyName: "", tradeLicence: "", ttsProvider: "elevenlabs" });
+  const [form, setForm] = useState<FormData>({ policyType: "individual", phone: "", contactName: "", dateOfBirth: "", emiratesId: "", companyName: "", tradeLicence: "", ttsProvider: "elevenlabs", elevenlabsApiKey: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -292,6 +412,7 @@ export default function Home() {
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [activeNav, setActiveNav] = useState("Dashboard");
   const [selectedCall, setSelectedCall] = useState<CallLog | null>(null);
+  const [quickCallContact, setQuickCallContact] = useState<QuickContact | null>(null);
 
   const fetchCalls = async () => {
     try {
@@ -303,6 +424,10 @@ export default function Home() {
           customer_name: call.customer_name,
           phone: call.phone_number,
           policy_type: call.policy_type,
+          date_of_birth: call.date_of_birth,
+          emirates_id: call.emirates_id,
+          company_name: call.company_name,
+          trade_licence: call.trade_licence,
           date: new Date(call.start_time).toLocaleDateString(),
           duration: call.duration_seconds 
             ? `${Math.floor(call.duration_seconds / 60)}:${(call.duration_seconds % 60).toString().padStart(2, '0')}` 
@@ -349,6 +474,14 @@ export default function Home() {
   }
 
   return (
+    <>
+    {quickCallContact && (
+      <QuickCallModal
+        contact={quickCallContact}
+        onClose={() => setQuickCallContact(null)}
+        onCallStart={(token) => setLiveToken(token)}
+      />
+    )}
     <div className="min-h-screen bg-[#F4F5F7] font-sans flex">
       {/* Sidebar */}
       <aside className="w-52 bg-white border-r border-slate-100 flex flex-col py-6 px-4 flex-shrink-0">
@@ -408,16 +541,37 @@ export default function Home() {
             ))}
           </div>
 
+          {/* Quick Contact Card */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-lg flex-shrink-0">
+                AM
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wider mb-0.5">Ready for Outbound</p>
+                <h3 className="text-lg font-bold text-slate-900">{DEMO_CONTACT.name}</h3>
+                <p className="text-sm text-slate-500">{DEMO_CONTACT.phone} · {DEMO_CONTACT.policyType}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setQuickCallContact(DEMO_CONTACT)}
+              className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
+            >
+              <Phone size={18} /> Quick Call
+            </button>
+          </div>
+
           {/* Call Log Table */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
               <h2 className="text-base font-bold text-slate-900">Recent Call Activity</h2>
             </div>
-            <table className="w-full">
+            <div className="overflow-x-auto">
+              <table className="w-full whitespace-nowrap">
               <thead>
                 <tr className="border-b border-slate-100">
-                  {["Call ID", "Customer Name", "Phone Number", "Policy Type", "Call Date", "Duration", "Service Rating", "Status"].map(h => (
-                    <th key={h} className="text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider px-6 py-3">{h}</th>
+                  {["Call ID", "Customer Name", "Phone Number", "Policy Type", "DOB / Emirates ID", "Company / Trade Lic.", "Call Date", "Duration", "Service Rating", "Status", ""].map((h, i) => (
+                    <th key={i} className="text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider px-6 py-3">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -435,6 +589,16 @@ export default function Home() {
                     <td className="px-6 py-4">
                       <span className="text-xs font-semibold bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg">{call.policy_type}</span>
                     </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {call.policy_type?.toLowerCase() === "individual" ? (
+                        call.date_of_birth || call.emirates_id ? `${call.date_of_birth || '-'} / ${call.emirates_id || '-'}` : "-"
+                      ) : "-"}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-slate-600">
+                      {call.policy_type?.toLowerCase() === "corporate" ? (
+                        call.company_name || call.trade_licence ? `${call.company_name || '-'} / ${call.trade_licence || '-'}` : "-"
+                      ) : "-"}
+                    </td>
                     <td className="px-6 py-4 text-sm text-slate-600">{call.date}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">{call.duration}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-slate-700">
@@ -450,10 +614,31 @@ export default function Home() {
                         {call.status}
                       </span>
                     </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQuickCallContact({
+                            name: call.customer_name,
+                            phone: call.phone,
+                            policyType: (call.policy_type?.toLowerCase() === "corporate" ? "corporate" : "individual") as "individual" | "corporate",
+                            dateOfBirth: call.date_of_birth || "",
+                            emiratesId: call.emirates_id || "",
+                            companyName: call.company_name || "",
+                            tradeLicence: call.trade_licence || ""
+                          });
+                        }}
+                        className="flex items-center gap-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                        title="Quick Call"
+                      >
+                        <Phone size={14} /> Call
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
             <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
               <p className="text-sm text-slate-400">Showing 1–{calls.length} of {calls.length} interactions</p>
               <div className="flex gap-2">
@@ -476,6 +661,7 @@ export default function Home() {
       {liveToken && <LiveCallModal token={liveToken} onEnd={() => setLiveToken(null)} />}
       {selectedCall && <CallDetailsModal call={selectedCall} onClose={() => setSelectedCall(null)} />}
     </div>
+    </>
   );
 }
 
