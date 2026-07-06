@@ -112,6 +112,7 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                 
         async def process_agent_audio(audio_stream: rtc.AudioStream, stream_sid_box: dict, websocket: WebSocket):
             state = None
+            out_buffer = bytearray()
             async for event in audio_stream:
                 if stream_sid_box["sid"] is None:
                     continue
@@ -130,17 +131,22 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                 # 3. Encode to mulaw
                 mulaw_data = audioop.lin2ulaw(resampled_pcm, 2)
                 
-                # 4. Base64 encode and send
-                payload = base64.b64encode(mulaw_data).decode('utf-8')
-                media_msg = {
-                    "event": "media",
-                    "streamSid": stream_sid_box["sid"],
-                    "media": {"payload": payload}
-                }
-                try:
-                    await websocket.send_text(json.dumps(media_msg))
-                except Exception:
-                    break
+                # 4. Buffer and send exactly 160-byte (20ms) chunks to Twilio
+                out_buffer.extend(mulaw_data)
+                while len(out_buffer) >= 160:
+                    chunk = out_buffer[:160]
+                    out_buffer = out_buffer[160:]
+                    
+                    payload = base64.b64encode(chunk).decode('utf-8')
+                    media_msg = {
+                        "event": "media",
+                        "streamSid": stream_sid_box["sid"],
+                        "media": {"payload": payload}
+                    }
+                    try:
+                        await websocket.send_text(json.dumps(media_msg))
+                    except Exception:
+                        return
         
         while True:
             data = await websocket.receive_text()
