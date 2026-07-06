@@ -126,12 +126,12 @@ function TranscriptBox() {
       const next = [...prev];
       let changed = false;
       transcriptions.forEach(t => {
-        if (!t.text.trim()) return;
         const tAny = t as any;
+        if (!tAny.text?.trim()) return;
         const isAgent = !(tAny.participant?.isLocal || tAny.segment?.participant?.isLocal);
-        const existing = next.findIndex(m => m.id === t.id);
-        if (existing >= 0) { if (next[existing].text !== t.text) { next[existing].text = t.text; changed = true; } }
-        else { next.push({ id: t.id, text: t.text, isAgent }); changed = true; }
+        const existing = next.findIndex(m => m.id === tAny.id);
+        if (existing >= 0) { if (next[existing].text !== tAny.text) { next[existing].text = tAny.text; changed = true; } }
+        else { next.push({ id: tAny.id, text: tAny.text, isAgent }); changed = true; }
       });
       return changed ? next : prev;
     });
