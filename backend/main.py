@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from .database import get_db, CallLog
 from .config import settings
+from .twilio_bridge import router as twilio_router
 from livekit import api
 import os
 
@@ -21,6 +22,9 @@ app.add_middleware(
 # Ensure recordings directory exists and mount it
 os.makedirs("recordings", exist_ok=True)
 app.mount("/recordings", StaticFiles(directory="recordings"), name="recordings")
+
+# Include Twilio routes
+app.include_router(twilio_router)
 
 @app.get("/")
 def read_root():

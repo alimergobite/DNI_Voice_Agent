@@ -12,7 +12,7 @@ import "@livekit/components-styles";
 import { 
   Mic, LayoutDashboard, LineChart, Bot, Megaphone, 
   Search, Plus, User, PhoneCall, TrendingUp, Smile, Radio,
-  Filter, Download, Star, ChevronLeft, ChevronRight, X, ChevronDown, Phone
+  Filter, Download, Star, ChevronLeft, ChevronRight, X, ChevronDown, Phone, Monitor
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -217,6 +217,40 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
     setLoading(false);
   }
 
+  async function handleDialPhone() {
+    setLoading(true);
+    setError("");
+    try {
+      // 1. Tell FastAPI to dial Twilio
+      const dialRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/dial`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone_number: contact.phone,
+          customer_name: contact.name,
+          policy_type: contact.policyType || "individual"
+        })
+      });
+      const dialData = await dialRes.json();
+      if (!dialRes.ok) throw new Error(dialData.detail || "Twilio Dial Failed");
+      
+      const roomName = dialData.room_name;
+      
+      // 2. Generate a token to spectate the LiveKit room
+      const tokenRes = await fetch("/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomName, participantName: "Dashboard Spectator", metadata: {} }),
+      });
+      const tokenData = await tokenRes.json();
+      if (tokenData.token) { onClose(); onCallStart(tokenData.token); }
+      else { setError(tokenData.error || "Failed to start room."); }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    }
+    setLoading(false);
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden">
@@ -257,13 +291,22 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
             </div>
           </div>
           {error && <p className="text-sm text-rose-500">{error}</p>}
-          <button
-            onClick={handleQuickCall}
-            disabled={loading}
-            className="w-full py-3 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
-          >
-            <Phone size={18} /> {loading ? "Connecting…" : "Start Call"}
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={handleQuickCall}
+              disabled={loading}
+              className="py-3 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              <Monitor size={18} /> {loading ? "..." : "Web Call"}
+            </button>
+            <button
+              onClick={handleDialPhone}
+              disabled={loading || !contact.phone}
+              className="py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              <Phone size={18} /> {loading ? "..." : "Dial Phone"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

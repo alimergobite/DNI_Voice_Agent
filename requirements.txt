@@ -11,3 +11,4 @@ fastapi
 uvicorn[standard]
 sqlalchemy
 pydantic-settings
+twilio
