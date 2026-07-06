@@ -19,10 +19,40 @@ class DialRequest(BaseModel):
 async def dial_outbound(request: DialRequest):
     if not os.getenv("TWILIO_ACCOUNT_SID") or not os.getenv("TWILIO_AUTH_TOKEN") or not os.getenv("TWILIO_PHONE_NUMBER"):
         raise HTTPException(status_code=500, detail="Twilio credentials not configured on the server")
-        
+
+    import asyncio
+    from livekit import api as lkapi
+
     room_name = f"twilio_{request.phone_number.strip('+')}_{os.urandom(4).hex()}"
-    
-    # We use dynamic TwiML. Twilio will dial the user, and when they answer, connect them to our WebSocket bridge.
+
+    # Build metadata so the agent knows who is calling
+    metadata = json.dumps({
+        "customer_name": request.customer_name,
+        "policy_type": request.policy_type,
+        "phone": request.phone_number,
+        "tts_provider": "elevenlabs",
+    })
+
+    # Step 1: Pre-create the LiveKit Room and dispatch the agent into it BEFORE Twilio connects
+    lk_api = lkapi.LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
+    try:
+        # Create the room first
+        await lk_api.room.create_room(lkapi.CreateRoomRequest(name=room_name))
+        # Dispatch the agent explicitly into this room
+        await lk_api.agent_dispatch.create_dispatch(
+            lkapi.CreateAgentDispatchRequest(
+                agent_name="",
+                room=room_name,
+                metadata=metadata,
+            )
+        )
+        print(f"[Twilio] Agent dispatched to room {room_name}")
+    except Exception as e:
+        print(f"[Twilio] Agent dispatch warning: {e}")
+    finally:
+        await lk_api.aclose()
+
+    # Step 2: Dial the customer via Twilio
     twiml_str = (
         f'<Response>'
         f'<Connect>'
@@ -30,7 +60,7 @@ async def dial_outbound(request: DialRequest):
         f'</Connect>'
         f'</Response>'
     )
-    
+
     client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
     try:
         call = client.calls.create(
@@ -40,7 +70,7 @@ async def dial_outbound(request: DialRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-        
+
     return {"status": "dialing", "call_sid": call.sid, "room_name": room_name}
 
 @router.websocket("/ws/twilio/{room_name}")
