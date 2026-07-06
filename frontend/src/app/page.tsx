@@ -463,7 +463,7 @@ export default function Home() {
     : "0.0";
   const sentimentPercent = ratedCalls.length > 0 ? (parseFloat(avgSentiment) / 10) * 100 : 0;
 
-  const stats = [
+  const stats: { label: string; value: string; sub: string; icon: JSX.Element; hasBar?: boolean; barWidth?: number }[] = [
     { label: "Total Calls", value: totalCalls.toString(), sub: "Real-time volume", icon: <PhoneCall size={24} className="text-slate-400" /> },
     { label: "Completion Rate", value: `${completionRate}%`, sub: `${completedCalls} successful calls`, icon: <TrendingUp size={24} className="text-slate-400" /> },
     { label: "Active Campaigns", value: "1", sub: "● DNI Outbound Protocol", icon: <Radio size={24} className="text-slate-400" /> },
