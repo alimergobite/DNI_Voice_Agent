@@ -128,9 +128,9 @@ async def entrypoint(ctx: JobContext):
     participant = await ctx.wait_for_participant()
     
     metadata = {}
-    if participant.metadata:
+    if ctx.job.metadata:
         try:
-            metadata = json.loads(participant.metadata)
+            metadata = json.loads(ctx.job.metadata)
         except Exception:
             pass
 
