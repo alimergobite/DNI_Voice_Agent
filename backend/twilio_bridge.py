@@ -57,12 +57,15 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
     options.source = rtc.TrackSource.SOURCE_MICROPHONE
     
     try:
-        # Connect to LiveKit (using the existing LIVEKIT_URL)
-        await room.connect(
-            settings.LIVEKIT_URL,
-            settings.LIVEKIT_API_KEY,
-            settings.LIVEKIT_API_SECRET
-        )
+        # Generate a valid JWT token for the LiveKit Room
+        from livekit import api
+        token = api.AccessToken(settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
+        token.with_identity(f"phone_{room_name}").with_name("Customer Phone")
+        token.with_grants(api.VideoGrants(roomJoin=True, room=room_name))
+        jwt_token = token.to_jwt()
+        
+        # Connect to LiveKit
+        await room.connect(settings.LIVEKIT_URL, jwt_token)
         
         # Publish the phone's audio track to the LiveKit room so the agent can hear it
         publication = await room.local_participant.publish_track(track, options)
