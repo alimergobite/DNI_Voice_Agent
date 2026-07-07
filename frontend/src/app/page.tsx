@@ -106,23 +106,28 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
 
 function RoomMonitor({ onEnd }: { onEnd: () => void }) {
   const participants = useRemoteParticipants();
-  const [hasConnected, setHasConnected] = useState(false);
+  const [phoneJoined, setPhoneJoined] = useState(false);
+  
   useEffect(() => {
-    if (participants.length > 0) setHasConnected(true);
-    if (hasConnected && participants.length === 0) {
+    const hasPhone = participants.some(p => p.identity.startsWith("phone_"));
+    if (hasPhone) {
+      setPhoneJoined(true);
+    } else if (phoneJoined) {
+      // The phone was here but now it's gone! Force close immediately!
       onEnd();
     }
-  }, [participants.length, hasConnected, onEnd]);
+  }, [participants, phoneJoined, onEnd]);
+  
   return null;
 }
 
 function AgentVisualizer() {
   const { state, audioTrack } = useVoiceAssistant();
   const participants = useRemoteParticipants();
-  const agentParticipant = participants.find(p => !p.identity.startsWith("phone_"));
   
-  // If useVoiceAssistant fails to find the agent, fallback to checking if any agent participant exists
-  const activeState = (state === "connecting" && agentParticipant) ? "speaking" : state;
+  // If useVoiceAssistant fails to find the agent, fallback to checking if any participants exist
+  // We force the state to 'speaking' (or 'idle') so it NEVER says 'connecting' once the call has started.
+  const activeState = (state === "connecting" && participants.length > 0) ? "speaking" : state;
   
   const stateLabels: Record<string, string> = { speaking: "Speaking", listening: "Listening", thinking: "Thinking", idle: "Idle", connecting: "Connecting" };
   const stateDotColors: Record<string, string> = { speaking: "bg-emerald-400 animate-pulse", listening: "bg-sky-400 animate-pulse", thinking: "bg-amber-400 animate-bounce", idle: "bg-slate-300", connecting: "bg-slate-300" };
