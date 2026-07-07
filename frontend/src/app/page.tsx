@@ -113,15 +113,21 @@ function CallStatusPanel({ onEnd }: { onEnd: () => void }) {
   const [messages, setMessages] = useState<{ id: string; text: string; isAgent: boolean }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const hasConnectedRef = useRef(false);
+
   // Participant presence → call status
   useEffect(() => {
-    if (connectionState === ConnectionState.Disconnected) {
+    if (connectionState === ConnectionState.Connected) {
+      hasConnectedRef.current = true;
+    }
+
+    if (connectionState === ConnectionState.Disconnected && hasConnectedRef.current) {
       console.log("[CallStatus] Spectator disconnected. Room ended.");
       onEnd();
       return;
     }
 
-    // Ignore transient reconnecting states
+    // Ignore transient reconnecting states or initial connecting state
     if (connectionState !== ConnectionState.Connected) {
       return;
     }
