@@ -8,8 +8,7 @@ load_dotenv(override=True)
 from google import genai
 from livekit.agents import AutoSubscribe, JobContext, JobRequest, WorkerOptions, cli
 from livekit.agents.voice import AgentSession, Agent
-from livekit.api import LiveKitAPI, RoomCompositeEgressRequest, EncodedFileOutput
-from livekit.plugins import silero
+from livekit.api import LiveKitAPI
 
 from backend.services.llm_service import get_llm_engine
 from backend.services.stt_service import get_stt_engine
@@ -122,11 +121,7 @@ async def process_call_log(session: AgentSession, customer_name: str, policy_typ
 # LiveKit Agent Entrypoint
 # ---------------------------------------------------------------------------
 async def entrypoint(ctx: JobContext):
-    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-
-    # Wait for the human participant to connect so we can read their metadata
-    participant = await ctx.wait_for_participant()
-    
+    # Read customer metadata from the dispatch request (set in twilio_bridge.py /api/dial)
     metadata = {}
     if ctx.job.metadata:
         try:
@@ -141,55 +136,35 @@ async def entrypoint(ctx: JobContext):
     instructions = get_outbound_prompt(customer_name, policy_type, metadata)
     greeting_text = f"Hi, this is Aisha from Dubai National Insurance. Am I speaking with {customer_name}?"
 
+    # Build the session
     session = AgentSession(
         stt=get_stt_engine(),
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
-        vad=silero.VAD.load(
-            activation_threshold=0.6,
-            min_speech_duration=0.3,
-            min_silence_duration=0.4,
-        ),
     )
-    
-    # Store start time for duration calculation
+
+    # Store start time and metadata for call logging
     session.start_time = time.time()
-    
-    # We pass metadata down to the logger
     global _last_metadata
     _last_metadata = metadata
 
+    # Connect and subscribe ONLY to audio tracks
+    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+
+    # Start the agent session against the room
     await session.start(room=ctx.room, agent=Agent(instructions=instructions))
-
-    # Trigger LiveKit Egress in the background so it doesn't delay the greeting
-    async def start_recording():
-        try:
-            api = LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
-            output = EncodedFileOutput(filepath=f"/out/{ctx.room.name}.mp4")
-            request = RoomCompositeEgressRequest(
-                room_name=ctx.room.name,
-                file=output,
-                layout="speaker-dark",
-                audio_only=True
-            )
-            # await api.egress.start_room_composite_egress(request)
-            # session.recording_url = f"/recordings/{ctx.room.name}.mp4"
-            await api.aclose()
-        except Exception as e:
-            print(f"[Recording Error] Failed to start egress: {e}")
-            session.recording_url = None
-
-    # asyncio.create_task(start_recording())
 
     ctx.room.on(
         "disconnected",
         lambda *args: asyncio.create_task(process_call_log(session, customer_name, policy_type)),
     )
 
+    # Wait for the Twilio Bridge participant to join before greeting
+    await ctx.wait_for_participant()
+
     try:
-        # Give WebRTC a tiny moment to establish the audio connection
-        await asyncio.sleep(1.0)
-        # Use say() to skip LLM latency and speak instantly
+        # Small pause so WebRTC audio path is fully established
+        await asyncio.sleep(1.5)
         await session.say(greeting_text, allow_interruptions=False)
     except Exception as e:
         print(f"[Agent Error] {e}")
