@@ -94,8 +94,8 @@ async def dial_outbound(request: DialRequest):
 async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
     await websocket.accept()
 
-    # Audio source for Twilio → LiveKit direction (Twilio sends 8kHz mulaw)
-    audio_source = rtc.AudioSource(sample_rate=8000, num_channels=1)
+    # Audio source for Twilio → LiveKit direction (Upsampled to 16kHz for VAD)
+    audio_source = rtc.AudioSource(sample_rate=16000, num_channels=1)
     track = rtc.LocalAudioTrack.create_audio_track("phone_mic", audio_source)
     options = rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
 
