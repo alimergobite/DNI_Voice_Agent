@@ -467,7 +467,7 @@ export default function Home() {
         if (Array.isArray(data)) {
           const formattedCalls = data.map((call: any) => ({
             id: String(call.call_id || `#CAL-${call.id}`),
-            customer_name: call.customer_name ? String(call.customer_name) : null,
+            customer_name: call.customer_name ? String(call.customer_name) : "Unknown",
             phone: String(call.phone_number || ""),
             policy_type: String(call.policy_type || "individual"),
             date_of_birth: call.date_of_birth ? String(call.date_of_birth) : null,
