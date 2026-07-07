@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     SARVAM_API_KEY: str = os.getenv("SARVAM_API_KEY", "")
     ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
     DEEPGRAM_API_KEY: str = os.getenv("DEEPGRAM_API_KEY", "")
+    TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
+    TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
     
     # LiveKit Settings
     LIVEKIT_URL: str = os.getenv("LIVEKIT_URL", "ws://127.0.0.1:7880")

@@ -81,6 +81,22 @@ async def process_call_log(session: AgentSession, customer_name: str, policy_typ
             "extracted_data": extracted,
         }
 
+        # Try to fetch Twilio Recording URL
+        recording_url = getattr(session, 'recording_url', None)
+        call_sid = _last_metadata.get("call_sid") if '_last_metadata' in globals() else None
+        
+        if call_sid and settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN:
+            try:
+                from twilio.rest import Client
+                twilio_client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+                recordings = twilio_client.recordings.list(call_sid=call_sid, limit=1)
+                if recordings:
+                    rec = recordings[0]
+                    recording_url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Recordings/{rec.sid}.mp3"
+                    print(f"[Call Logging] Found Twilio recording: {recording_url}")
+            except Exception as e:
+                print(f"[Call Logging] Failed to fetch Twilio recording: {e}")
+
         # Save to SQLite DB
         db = SessionLocal()
         try:
@@ -97,7 +113,7 @@ async def process_call_log(session: AgentSession, customer_name: str, policy_typ
                 rating=float(extracted.get("rating")) if str(extracted.get("rating")).replace('.','',1).isdigit() else None,
                 status=extracted.get("status", "Completed"),
                 transcript=transcript,
-                recording_url=getattr(session, 'recording_url', None)
+                recording_url=recording_url
             )
             db.add(db_log)
             db.commit()

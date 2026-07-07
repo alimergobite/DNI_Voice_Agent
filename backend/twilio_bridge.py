@@ -25,15 +25,36 @@ async def dial_outbound(request: DialRequest):
 
     room_name = f"twilio_{request.phone_number.strip('+')}_{os.urandom(4).hex()}"
 
-    # Build metadata so the agent knows who is calling
+    # Step 1: Dial the customer via Twilio and enable recording
+    twiml_str = (
+        f'<Response>'
+        f'<Connect>'
+        f'<Stream url="wss://demo2.ergobite.com/ws/twilio/{room_name}" />'
+        f'</Connect>'
+        f'</Response>'
+    )
+
+    client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+    try:
+        call = client.calls.create(
+            twiml=twiml_str,
+            to=request.phone_number,
+            from_=os.getenv("TWILIO_PHONE_NUMBER"),
+            record=True  # Enables call recording on Twilio
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Build metadata including the Twilio call SID so the agent can fetch the recording later
     metadata = json.dumps({
         "customer_name": request.customer_name,
         "policy_type": request.policy_type,
         "phone": request.phone_number,
         "tts_provider": "elevenlabs",
+        "call_sid": call.sid
     })
 
-    # Step 1: Pre-create the LiveKit Room and dispatch the agent ONCE
+    # Step 2: Pre-create the LiveKit Room and dispatch the agent ONCE
     lk_api = lkapi.LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
     try:
         await lk_api.room.create_room(lkapi.CreateRoomRequest(name=room_name))
@@ -44,30 +65,11 @@ async def dial_outbound(request: DialRequest):
                 metadata=metadata,
             )
         )
-        print(f"[Twilio] Agent dispatched to room {room_name}")
+        print(f"[Twilio] Agent dispatched to room {room_name} for Call SID {call.sid}")
     except Exception as e:
         print(f"[Twilio] Agent dispatch warning: {e}")
     finally:
         await lk_api.aclose()
-
-    # Step 2: Dial the customer via Twilio
-    twiml_str = (
-        f'<Response>'
-        f'<Connect>'
-        f'<Stream url="wss://demo2.ergobite.com/ws/twilio/{room_name}" />'
-        f'</Connect>'
-        f'</Response>'
-    )
-
-    client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
-    try:
-        call = client.calls.create(
-            twiml=twiml_str,
-            to=request.phone_number,
-            from_=os.getenv("TWILIO_PHONE_NUMBER")
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
     return {"status": "dialing", "call_sid": call.sid, "room_name": room_name}
 
