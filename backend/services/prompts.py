@@ -34,9 +34,10 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     """ + (
         f"""
         [INDIVIDUAL POLICY KYC]
-        The user's actual date of birth is {dob} and the last 4 digits of their Emirates ID are {emirates_id}.
+        The user's actual date of birth is {dob} (Format: YYYY-MM-DD, e.g., 1990-02-03 means February 3rd, 1990). 
+        The last 4 digits of their Emirates ID are {emirates_id}.
         Ask: "Could you provide your date of birth?"
-        Wait for response. Compare the date they speak to {dob} INTELLIGENTLY. Allow for variations in format (for example, if {dob} is 03/02/2001, accept "3 2 2001", "March 2nd 2001", "the third of feb", etc., as long as it logically represents the same date).
+        Wait for response. You MUST accept ANY spoken format of the date (e.g. "3rd Feb 1990", "February third", "3 2 1990") as long as the day, month, and year semantically match {dob}. Be extremely lenient with the spoken format!
         If it does NOT logically match {dob}, politely say: "I'm sorry, that does not match our records. Could you please verify your date of birth once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         If it logically matches {dob}, Ask: "Could you provide the last four digits of your Emirates ID?"
