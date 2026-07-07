@@ -26,11 +26,20 @@ async def twiml_callback(room_name: str):
 
 @router.get("/api/twilio_log")
 async def get_twilio_log():
-    import os
-    if os.path.exists("/tmp/twilio_media_error.log"):
-        with open("/tmp/twilio_media_error.log", "r") as f:
-            return {"log": f.read()}
-    return {"log": "No log file"}
+    try:
+        import os
+        log_content = ""
+        if os.path.exists("/tmp/twilio_media_error.log"):
+            with open("/tmp/twilio_media_error.log", "r") as f:
+                log_content += "ERRORS:\n" + f.read()[-5000:] + "\n"
+        if os.path.exists("/tmp/twilio_media_debug.log"):
+            with open("/tmp/twilio_media_debug.log", "r") as f:
+                log_content += "DEBUG:\n" + f.read()[-5000:]
+        if not log_content:
+            return {"log": "No log files"}
+        return {"log": log_content}
+    except Exception as e:
+        return {"error": str(e)}
 
 class DialRequest(BaseModel):
     phone_number: str
@@ -96,7 +105,7 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
 
     # Audio source for Twilio → LiveKit direction (Upsampled to 16kHz for VAD)
     audio_source = rtc.AudioSource(sample_rate=16000, num_channels=1)
-    track = rtc.LocalAudioTrack.create_audio_track("phone_mic", audio_source)
+    track = rtc.LocalAudioTrack.create_audio_track("microphone", audio_source)
     options = rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
 
     room = rtc.Room()
@@ -220,6 +229,12 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                         memoryview(frame.data).cast('B')[:] = chunk
                         
                         await audio_source.capture_frame(frame)
+                        
+                        # DEBUG: Log successful frame capture (log only every 100 frames to avoid disk spam)
+                        if getattr(audio_source, "_debug_frame_count", 0) % 100 == 0:
+                            with open("/tmp/twilio_media_debug.log", "a") as f:
+                                f.write(f"Captured frame {getattr(audio_source, '_debug_frame_count', 0)} successfully\n")
+                        audio_source._debug_frame_count = getattr(audio_source, "_debug_frame_count", 0) + 1
                         
                 except Exception as e:
                     with open("/tmp/twilio_media_error.log", "a") as f:
