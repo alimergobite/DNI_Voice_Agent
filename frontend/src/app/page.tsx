@@ -56,8 +56,9 @@ const STATUS_STYLES: Record<string, string> = {
 
 // ─── Avatar Helper ────────────────────────────────────────────────────────────
 const AVATAR_COLORS = ["bg-blue-200 text-blue-700", "bg-purple-200 text-purple-700", "bg-emerald-200 text-emerald-700", "bg-amber-200 text-amber-700", "bg-rose-200 text-rose-700"];
-function Avatar({ name, idx }: { name: string; idx: number }) {
-  const initials = name.split(" ").slice(0, 2).map(w => w[0]).join("");
+function Avatar({ name, idx }: { name: string | null; idx: number }) {
+  const safeName = name || "Unknown";
+  const initials = safeName.split(" ").slice(0, 2).map(w => w[0] || "").join("").toUpperCase();
   return (
     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}>
       {initials}
