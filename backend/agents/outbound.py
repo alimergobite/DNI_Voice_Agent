@@ -12,9 +12,8 @@ from livekit.api import LiveKitAPI
 from livekit.plugins import silero
 
 # Initialize VAD globally so it doesn't block the async event loop during job dispatch.
-# We use a higher activation threshold (0.6 instead of 0.5) to ignore Twilio static/background noise,
-# and lower silence duration to respond rapidly.
-custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.3, activation_threshold=0.6)
+# We keep activation_threshold at 0.5 (default) to easily pick up soft speech like 'yes'.
+custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.2, activation_threshold=0.5)
 
 from backend.services.llm_service import get_llm_engine
 from backend.services.stt_service import get_stt_engine
