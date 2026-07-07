@@ -172,7 +172,12 @@ async def entrypoint(ctx: JobContext):
 
 
 async def request_fnc(req: JobRequest) -> None:
-    await req.accept()
+    # Only accept explicitly dispatched jobs (those with metadata set by the bridge).
+    # This prevents LiveKit from auto-dispatching a second agent into the same room.
+    if req.job.metadata:
+        await req.accept()
+    else:
+        await req.reject()
 
 
 if __name__ == "__main__":
