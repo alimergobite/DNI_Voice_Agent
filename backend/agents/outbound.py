@@ -170,6 +170,11 @@ async def entrypoint(ctx: JobContext):
     # Start the agent session against the room
     await session.start(room=ctx.room, agent=Agent(instructions=instructions))
 
+    @ctx.room.on("participant_disconnected")
+    def on_participant_disconnected(participant):
+        if participant.identity.startswith("phone_"):
+            asyncio.create_task(ctx.room.disconnect())
+
     ctx.room.on(
         "disconnected",
         lambda *args: asyncio.create_task(process_call_log(session, customer_name, policy_type)),
