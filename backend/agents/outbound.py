@@ -223,6 +223,7 @@ async def request_fnc(req: JobRequest) -> None:
 if __name__ == "__main__":
     cli.run_app(
         WorkerOptions(
+            agent_name="outbound_agent",
             entrypoint_fnc=entrypoint,
             request_fnc=request_fnc,
             port=8082,
