@@ -100,42 +100,50 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
         agent_started = False
 
         async def process_agent_audio(audio_stream: rtc.AudioStream):
-            """
-            Reads 8kHz mono PCM frames directly from LiveKit (we requested 8000Hz),
-            converts to mulaw, and sends 160-byte (20ms) chunks to Twilio.
-            No audioop.ratecv needed — LiveKit resamples for us.
-            """
+            print("[Twilio Bridge] process_agent_audio task started")
             out_buffer = bytearray()
-            async for event in audio_stream:
-                if stream_sid_box["sid"] is None:
-                    continue
+            ratecv_state = None
+            try:
+                async for event in audio_stream:
+                    if stream_sid_box["sid"] is None:
+                        continue
 
-                frame = event.frame
-                pcm_bytes = bytes(frame.data)
+                    frame = event.frame
+                    pcm_bytes = bytes(frame.data)
 
-                # Force mono if needed (safety fallback)
-                if frame.num_channels == 2:
-                    pcm_bytes = audioop.tomono(pcm_bytes, 2, 0.5, 0.5)
+                    # 1. Resample to 8000 Hz if needed
+                    if frame.sample_rate != 8000:
+                        pcm_bytes, ratecv_state = audioop.ratecv(
+                            pcm_bytes, 2, frame.num_channels, frame.sample_rate, 8000, ratecv_state
+                        )
+                    
+                    # 2. Force mono if needed
+                    if frame.num_channels == 2:
+                        pcm_bytes = audioop.tomono(pcm_bytes, 2, 0.5, 0.5)
 
-                # Convert 16-bit PCM → 8-bit mulaw
-                mulaw_bytes = audioop.lin2ulaw(pcm_bytes, 2)
+                    # 3. Convert 16-bit PCM → 8-bit mulaw
+                    mulaw_bytes = audioop.lin2ulaw(pcm_bytes, 2)
 
-                # Buffer into exactly 160-byte chunks (20ms @ 8kHz mulaw)
-                out_buffer.extend(mulaw_bytes)
-                while len(out_buffer) >= 160:
-                    chunk = bytes(out_buffer[:160])
-                    out_buffer = out_buffer[160:]
+                    # Buffer into 160-byte chunks (20ms @ 8kHz mulaw)
+                    out_buffer.extend(mulaw_bytes)
+                    while len(out_buffer) >= 160:
+                        chunk = bytes(out_buffer[:160])
+                        out_buffer = out_buffer[160:]
 
-                    payload = base64.b64encode(chunk).decode("utf-8")
-                    msg = json.dumps({
-                        "event": "media",
-                        "streamSid": stream_sid_box["sid"],
-                        "media": {"payload": payload}
-                    })
-                    try:
-                        await websocket.send_text(msg)
-                    except Exception:
-                        return
+                        payload = base64.b64encode(chunk).decode("utf-8")
+                        msg = json.dumps({
+                            "event": "media",
+                            "streamSid": stream_sid_box["sid"],
+                            "media": {"payload": payload}
+                        })
+                        try:
+                            await websocket.send_text(msg)
+                        except Exception:
+                            return
+            except Exception as e:
+                print(f"[Twilio Bridge] Error in process_agent_audio: {e}")
+                import traceback
+                traceback.print_exc()
 
         @room.on("track_subscribed")
         def on_track_subscribed(
@@ -147,13 +155,11 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
             if remote_track.kind == rtc.TrackKind.KIND_AUDIO and not agent_started:
                 agent_started = True
                 print("[Twilio Bridge] Agent audio track subscribed — starting stream to phone")
-                # Use standard constructor with explicit 8kHz mono so LiveKit resamples internally
-                audio_stream = rtc.AudioStream(
-                    remote_track,
-                    sample_rate=8000,
-                    num_channels=1,
-                )
-                agent_audio_task = asyncio.ensure_future(process_agent_audio(audio_stream))
+                try:
+                    audio_stream = rtc.AudioStream(remote_track)
+                    agent_audio_task = asyncio.ensure_future(process_agent_audio(audio_stream))
+                except Exception as e:
+                    print(f"[Twilio Bridge] Failed to create AudioStream: {e}")
 
         # Main loop: receive Twilio WebSocket messages
         async for raw in websocket.iter_text():
