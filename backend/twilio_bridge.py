@@ -86,8 +86,8 @@ async def dial_outbound(request: DialRequest):
 async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
     await websocket.accept()
 
-    # Audio source for Twilio → LiveKit direction (Twilio sends 8kHz mulaw)
-    audio_source = rtc.AudioSource(sample_rate=8000, num_channels=1)
+    # Audio source for Twilio → LiveKit direction (Upsampled to 16kHz for VAD)
+    audio_source = rtc.AudioSource(sample_rate=16000, num_channels=1)
     track = rtc.LocalAudioTrack.create_audio_track("phone_mic", audio_source)
     options = rtc.TrackPublishOptions()
     options.source = rtc.TrackSource.SOURCE_MICROPHONE
@@ -186,17 +186,25 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                 print(f"[Twilio] Stream started: {stream_sid_box['sid']} for room {room_name}")
 
             elif event == "media":
-                # Twilio → LiveKit: decode mulaw, push 8kHz mono PCM
-                mulaw = base64.b64decode(msg["media"]["payload"])
-                pcm = audioop.ulaw2lin(mulaw, 2)
-                samples = len(pcm) // 2
-                frame = rtc.AudioFrame(
-                    data=pcm,
-                    sample_rate=8000,
-                    num_channels=1,
-                    samples_per_channel=samples
-                )
-                await audio_source.capture_frame(frame)
+                try:
+                    # Twilio → LiveKit: decode mulaw, push 16kHz mono PCM for VAD compatibility
+                    mulaw = base64.b64decode(msg["media"]["payload"])
+                    pcm_8k = audioop.ulaw2lin(mulaw, 2)
+                    
+                    # Upsample 8kHz -> 16kHz
+                    pcm_16k, _ = audioop.ratecv(pcm_8k, 2, 1, 8000, 16000, None)
+                    samples = len(pcm_16k) // 2
+                    
+                    frame = rtc.AudioFrame(
+                        data=pcm_16k,
+                        sample_rate=16000,
+                        num_channels=1,
+                        samples_per_channel=samples
+                    )
+                    await audio_source.capture_frame(frame)
+                except Exception as e:
+                    with open("/tmp/twilio_media_error.log", "a") as f:
+                        f.write(f"Media Event Error: {e}\n")
 
             elif event == "stop":
                 print(f"[Twilio] Stream stopped for room {room_name}")
