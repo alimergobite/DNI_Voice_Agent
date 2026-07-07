@@ -9,6 +9,12 @@ from google import genai
 from livekit.agents import AutoSubscribe, JobContext, JobRequest, WorkerOptions, cli
 from livekit.agents.voice import AgentSession, Agent
 from livekit.api import LiveKitAPI
+from livekit.plugins import silero
+
+# Initialize VAD globally so it doesn't block the async event loop during job dispatch.
+# We use a higher activation threshold (0.6 instead of 0.5) to ignore Twilio static/background noise,
+# and lower silence duration to respond rapidly.
+custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.3, activation_threshold=0.6)
 
 from backend.services.llm_service import get_llm_engine
 from backend.services.stt_service import get_stt_engine
@@ -155,6 +161,7 @@ async def entrypoint(ctx: JobContext):
     # Build the session
     session = AgentSession(
         stt=get_stt_engine(),
+        vad=custom_vad,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
     )
