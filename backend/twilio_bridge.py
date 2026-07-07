@@ -177,6 +177,7 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     start_agent_audio(publication.track)
 
         # Main loop: receive Twilio WebSocket messages
+        tw_ratecv_state = None
         async for raw in websocket.iter_text():
             msg = json.loads(raw)
             event = msg.get("event")
@@ -191,8 +192,8 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     mulaw = base64.b64decode(msg["media"]["payload"])
                     pcm_8k = audioop.ulaw2lin(mulaw, 2)
                     
-                    # Upsample 8kHz -> 16kHz
-                    pcm_16k, _ = audioop.ratecv(pcm_8k, 2, 1, 8000, 16000, None)
+                    # Upsample 8kHz -> 16kHz (MUST KEEP STATE BETWEEN FRAMES)
+                    pcm_16k, tw_ratecv_state = audioop.ratecv(pcm_8k, 2, 1, 8000, 16000, tw_ratecv_state)
                     samples = len(pcm_16k) // 2
                     
                     frame = rtc.AudioFrame(
