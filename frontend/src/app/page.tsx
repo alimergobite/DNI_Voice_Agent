@@ -6,6 +6,7 @@ import {
   RoomAudioRenderer,
   useTranscriptions,
   useRemoteParticipants,
+  useRoomContext,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { 
@@ -102,15 +103,37 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
 }
 
 // ─── CallStatusPanel — single component for spectators ────────────────────────
-// useVoiceAssistant() is ONLY for actual voice participants, NOT spectators.
-// This component uses useRemoteParticipants() directly, which works for spectators.
 function CallStatusPanel({ onEnd }: { onEnd: () => void }) {
-  const participants = useRemoteParticipants();
+  const room = useRoomContext();
+  const [participants, setParticipants] = useState<import("livekit-client").RemoteParticipant[]>([]);
   const transcriptions = useTranscriptions();
   const [phoneEverJoined, setPhoneEverJoined] = useState(false);
   const [callStatus, setCallStatus] = useState<"waiting" | "ringing" | "active" | "ended">("waiting");
   const [messages, setMessages] = useState<{ id: string; text: string; isAgent: boolean }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Manual participant sync from the raw room object
+  useEffect(() => {
+    if (!room) return;
+
+    const syncParticipants = () => {
+      const pList = Array.from(room.remoteParticipants.values());
+      console.log("[RoomMonitor] Participants in room:", pList.map(p => p.identity));
+      setParticipants(pList);
+    };
+
+    // Initial sync
+    syncParticipants();
+
+    // Listen to all participant events
+    room.on("participantConnected", syncParticipants);
+    room.on("participantDisconnected", syncParticipants);
+    
+    return () => {
+      room.off("participantConnected", syncParticipants);
+      room.off("participantDisconnected", syncParticipants);
+    };
+  }, [room]);
 
   // Participant presence → call status
   useEffect(() => {
@@ -122,22 +145,28 @@ function CallStatusPanel({ onEnd }: { onEnd: () => void }) {
            !p.identity.toLowerCase().includes("dashboard")
     );
 
+    let timeoutId: NodeJS.Timeout;
+
     if (hasPhone) {
       setPhoneEverJoined(true);
       setCallStatus("active");
     } else if (hasAgent && !hasPhone) {
       if (phoneEverJoined) {
         setCallStatus("ended");
-        setTimeout(() => onEnd(), 1500);
+        timeoutId = setTimeout(() => onEnd(), 3000);
       } else {
         setCallStatus("ringing");
       }
     } else if (!hasAgent && !hasPhone) {
       if (phoneEverJoined) {
         setCallStatus("ended");
-        setTimeout(() => onEnd(), 1500);
+        timeoutId = setTimeout(() => onEnd(), 3000);
       }
     }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [participants, phoneEverJoined, onEnd]);
 
   // Transcriptions
