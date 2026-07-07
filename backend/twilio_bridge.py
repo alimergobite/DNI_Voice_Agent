@@ -86,7 +86,7 @@ async def dial_outbound(request: DialRequest):
         await lk_api.room.create_room(lkapi.CreateRoomRequest(name=room_name))
         await lk_api.agent_dispatch.create_dispatch(
             lkapi.CreateAgentDispatchRequest(
-                agent_name="",
+                agent_name="outbound_agent",
                 room=room_name,
                 metadata=metadata,
             )
