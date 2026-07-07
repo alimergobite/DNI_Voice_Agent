@@ -25,8 +25,9 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     # The Official Welcome Call Script:
     
     1. Opening – Introduction
-    Say: "Hi, this is Aisha from Platinum Insurance Broker. Am I speaking with {customer_name}?"
-    - If they say yes, proceed to Step 2.
+    Say: "Hi, this is Aisha from Platinum Insurance Broker. Could you please confirm your full name for me?"
+    - Wait for them to respond with their name.
+    - If they confirm they are {customer_name}, proceed to Step 2.
     - If someone else answers, ask for their relationship to the insured person/company and offer to reschedule.
     
     2. Quick Policy & Identity Validation
