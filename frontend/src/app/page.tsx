@@ -115,7 +115,13 @@ function CallStatusPanel({ onEnd }: { onEnd: () => void }) {
 
   // Participant presence → call status
   useEffect(() => {
-    // If the spectator is currently reconnecting or disconnected, DO NOT trigger the close logic!
+    if (connectionState === ConnectionState.Disconnected) {
+      console.log("[CallStatus] Spectator disconnected. Room ended.");
+      onEnd();
+      return;
+    }
+
+    // Ignore transient reconnecting states
     if (connectionState !== ConnectionState.Connected) {
       return;
     }
