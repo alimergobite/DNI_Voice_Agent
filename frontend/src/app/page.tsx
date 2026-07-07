@@ -128,7 +128,8 @@ function TranscriptBox() {
       transcriptions.forEach(t => {
         const tAny = t as any;
         if (!tAny.text?.trim()) return;
-        const isAgent = !(tAny.participant?.isLocal || tAny.segment?.participant?.isLocal);
+        // The spectator is the local participant, so we must rely on identity or name to tell Aisha apart from the Customer
+        const isAgent = !(tAny.participant?.name === "Customer Phone" || tAny.participant?.identity?.startsWith("phone_") || tAny.segment?.participant?.identity?.startsWith("phone_"));
         const existing = next.findIndex(m => m.id === tAny.id);
         if (existing >= 0) { if (next[existing].text !== tAny.text) { next[existing].text = tAny.text; changed = true; } }
         else { next.push({ id: tAny.id, text: tAny.text, isAgent }); changed = true; }
@@ -146,7 +147,7 @@ function TranscriptBox() {
       {messages.slice(-6).map((m, i) => (
         <div key={`${m.id}-${i}`} className={`flex ${m.isAgent ? "justify-start" : "justify-end"}`}>
           <div className={`px-3 py-2 rounded-xl text-xs max-w-[85%] ${m.isAgent ? "bg-slate-100 text-slate-700" : "bg-emerald-50 border border-emerald-200 text-slate-700"}`}>
-            <span className={`block text-[10px] font-bold mb-0.5 ${m.isAgent ? "text-emerald-600" : "text-slate-400"}`}>{m.isAgent ? "AISHA" : "YOU"}</span>
+            <span className={`block text-[10px] font-bold mb-0.5 ${m.isAgent ? "text-emerald-600" : "text-slate-400"}`}>{m.isAgent ? "AISHA" : "CUSTOMER"}</span>
             {m.text}
           </div>
         </div>
@@ -171,7 +172,7 @@ interface QuickContact {
 // ─── Quick Contact Data ───────────────────────────────────────────────────────
 const DEMO_CONTACT: QuickContact = {
   name: "Ahmed Al Mansoori",
-  phone: "+971 50 123 4567",
+  phone: "+918793296687",
   policyType: "individual",
   dateOfBirth: "1990-02-03",
   emiratesId: "5678",
