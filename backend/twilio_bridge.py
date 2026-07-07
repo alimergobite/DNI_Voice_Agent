@@ -212,12 +212,15 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                         chunk = bytes(tw_audio_buffer[:320])
                         tw_audio_buffer = tw_audio_buffer[320:]
                         
-                        frame = rtc.AudioFrame(
-                            data=chunk,
+                        # Allocate C++ AudioFrame explicitly and copy data to avoid Python GC corruption
+                        frame = rtc.AudioFrame.create(
                             sample_rate=16000,
                             num_channels=1,
                             samples_per_channel=160
                         )
+                        # Cast the 16-bit memoryview to bytes to assign the raw chunk
+                        memoryview(frame.data).cast('B')[:] = chunk
+                        
                         await audio_source.capture_frame(frame)
                         
                 except Exception as e:
