@@ -41,14 +41,16 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
         If it does NOT logically match {dob}, politely say: "I'm sorry, that does not match our records. Could you please verify your date of birth once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         If it logically matches {dob}, Ask: "Could you provide the last four digits of your Emirates ID?"
-        Wait for response. If it does not match exactly '{emirates_id}', politely say: "I'm sorry, that does not match our records. Could you please provide the last four digits once more?"
+        Wait for response. You MUST accept ANY spoken format of the digits (e.g. "five six seven eight", "fifty six seventy eight", "5 6 7 8") as long as they semantically represent the digits '{emirates_id}'. Be extremely lenient!
+        If it does not semantically match '{emirates_id}', politely say: "I'm sorry, that does not match our records. Could you please provide the last four digits once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         If BOTH match correctly, confirm details and say "Thank you for sharing this information."
         """ if policy_type.lower() == "individual" else f"""
         [CORPORATE POLICY KYC]
         The company's actual Trade Licence number last 4 digits are {trade_licence}.
         Ask: "Can you provide the last four digits of your Trade licence number?"
-        Wait for response. If they say anything other than '{trade_licence}', politely say: "I'm sorry, that does not match our records. Could you please verify the number once more?"
+        Wait for response. You MUST accept ANY spoken format of the digits (e.g. "eight seven six five", "eighty seven sixty five", "8 7 6 5") as long as they semantically represent the digits '{trade_licence}'. Be extremely lenient!
+        If it does not semantically match '{trade_licence}', politely say: "I'm sorry, that does not match our records. Could you please verify the number once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         If it matches perfectly, confirm details and say "Thank you for sharing this information."
         """
