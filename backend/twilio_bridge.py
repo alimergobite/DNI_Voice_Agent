@@ -94,11 +94,10 @@ async def dial_outbound(request: DialRequest):
 async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
     await websocket.accept()
 
-    # Audio source for Twilio → LiveKit direction (Upsampled to 16kHz for VAD)
-    audio_source = rtc.AudioSource(sample_rate=16000, num_channels=1)
+    # Audio source for Twilio → LiveKit direction (Twilio sends 8kHz mulaw)
+    audio_source = rtc.AudioSource(sample_rate=8000, num_channels=1)
     track = rtc.LocalAudioTrack.create_audio_track("phone_mic", audio_source)
-    options = rtc.TrackPublishOptions()
-    options.source = rtc.TrackSource.SOURCE_MICROPHONE
+    options = rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
 
     room = rtc.Room()
     agent_audio_task = None
@@ -198,7 +197,7 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
 
             elif event == "media":
                 try:
-                    # Twilio → LiveKit: decode mulaw, push 16kHz mono PCM for VAD compatibility
+                    # Twilio → LiveKit: decode mulaw, push 16kHz mono PCM
                     mulaw = base64.b64decode(msg["media"]["payload"])
                     pcm_8k = audioop.ulaw2lin(mulaw, 2)
                     
@@ -206,7 +205,6 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     pcm_16k, tw_ratecv_state = audioop.ratecv(pcm_8k, 2, 1, 8000, 16000, tw_ratecv_state)
                     
                     # Buffer and send EXACTLY 10ms chunks (160 samples @ 16kHz = 320 bytes)
-                    # WebRTC silently drops frames that are not 10ms!
                     tw_audio_buffer.extend(pcm_16k)
                     while len(tw_audio_buffer) >= 320:
                         chunk = bytes(tw_audio_buffer[:320])
