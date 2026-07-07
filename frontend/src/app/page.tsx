@@ -4,8 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
-  useVoiceAssistant,
-  BarVisualizer,
   useTranscriptions,
   useRemoteParticipants,
 } from "@livekit/components-react";
@@ -85,13 +83,12 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
           serverUrl={url}
           connect={true}
           onDisconnected={onEnd}
-          audio={true}
+          audio={false}
+          video={false}
           className="w-full flex flex-col items-center"
         >
-          <RoomMonitor onEnd={onEnd} />
           <RoomAudioRenderer />
-          <AgentVisualizer />
-          <TranscriptBox />
+          <CallStatusPanel onEnd={onEnd} />
           <button
             onClick={onEnd}
             className="mt-6 w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-2xl transition-colors"
@@ -104,50 +101,46 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
   );
 }
 
-function RoomMonitor({ onEnd }: { onEnd: () => void }) {
+// ─── CallStatusPanel — single component for spectators ────────────────────────
+// useVoiceAssistant() is ONLY for actual voice participants, NOT spectators.
+// This component uses useRemoteParticipants() directly, which works for spectators.
+function CallStatusPanel({ onEnd }: { onEnd: () => void }) {
   const participants = useRemoteParticipants();
-  const [phoneJoined, setPhoneJoined] = useState(false);
-  
-  useEffect(() => {
-    const hasPhone = participants.some(p => p.identity.startsWith("phone_"));
-    if (hasPhone) {
-      setPhoneJoined(true);
-    } else if (phoneJoined) {
-      // The phone was here but now it's gone! Force close immediately!
-      onEnd();
-    }
-  }, [participants, phoneJoined, onEnd]);
-  
-  return null;
-}
-
-function AgentVisualizer() {
-  const { state, audioTrack } = useVoiceAssistant();
-  const participants = useRemoteParticipants();
-  
-  // If useVoiceAssistant fails to find the agent, fallback to checking if any participants exist
-  // We force the state to 'speaking' (or 'idle') so it NEVER says 'connecting' once the call has started.
-  const activeState = (state === "connecting" && participants.length > 0) ? "speaking" : state;
-  
-  const stateLabels: Record<string, string> = { speaking: "Speaking", listening: "Listening", thinking: "Thinking", idle: "Idle", connecting: "Connecting" };
-  const stateDotColors: Record<string, string> = { speaking: "bg-emerald-400 animate-pulse", listening: "bg-sky-400 animate-pulse", thinking: "bg-amber-400 animate-bounce", idle: "bg-slate-300", connecting: "bg-slate-300" };
-  
-  return (
-    <div className="flex flex-col items-center w-full mb-4">
-      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-1.5 rounded-full mb-4">
-        <div className={`w-2 h-2 rounded-full ${stateDotColors[activeState] || "bg-slate-300"}`} />
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">{stateLabels[activeState] || activeState}</span>
-      </div>
-      <BarVisualizer state={activeState as any} trackRef={audioTrack} barCount={7} options={{ minHeight: 12 }} className="w-36 h-12 fill-emerald-500" />
-    </div>
-  );
-}
-
-function TranscriptBox() {
   const transcriptions = useTranscriptions();
+  const [phoneEverJoined, setPhoneEverJoined] = useState(false);
+  const [callStatus, setCallStatus] = useState<"waiting" | "ringing" | "active" | "ended">("waiting");
   const [messages, setMessages] = useState<{ id: string; text: string; isAgent: boolean }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Participant presence → call status
+  useEffect(() => {
+    const hasPhone = participants.some(p => p.identity.startsWith("phone_"));
+    const hasAgent = participants.some(
+      p => !p.identity.startsWith("phone_") &&
+           !p.identity.toLowerCase().includes("spectator") &&
+           !p.identity.toLowerCase().includes("operator") &&
+           !p.identity.toLowerCase().includes("dashboard")
+    );
+
+    if (hasPhone) {
+      setPhoneEverJoined(true);
+      setCallStatus("active");
+    } else if (hasAgent && !hasPhone) {
+      if (phoneEverJoined) {
+        setCallStatus("ended");
+        setTimeout(() => onEnd(), 1500);
+      } else {
+        setCallStatus("ringing");
+      }
+    } else if (!hasAgent && !hasPhone) {
+      if (phoneEverJoined) {
+        setCallStatus("ended");
+        setTimeout(() => onEnd(), 1500);
+      }
+    }
+  }, [participants, phoneEverJoined, onEnd]);
+
+  // Transcriptions
   useEffect(() => {
     setMessages(prev => {
       const next = [...prev];
@@ -155,11 +148,17 @@ function TranscriptBox() {
       transcriptions.forEach(t => {
         const tAny = t as any;
         if (!tAny.text?.trim()) return;
-        // The spectator is the local participant, so we must rely on identity or name to tell Aisha apart from the Customer
-        const isAgent = !(tAny.participant?.name === "Customer Phone" || tAny.participant?.identity?.startsWith("phone_") || tAny.segment?.participant?.identity?.startsWith("phone_"));
+        const isAgent = !(
+          tAny.participant?.name === "Customer Phone" ||
+          tAny.participant?.identity?.startsWith("phone_") ||
+          tAny.segment?.participant?.identity?.startsWith("phone_")
+        );
         const existing = next.findIndex(m => m.id === tAny.id);
-        if (existing >= 0) { if (next[existing].text !== tAny.text) { next[existing].text = tAny.text; changed = true; } }
-        else { next.push({ id: tAny.id, text: tAny.text, isAgent }); changed = true; }
+        if (existing >= 0) {
+          if (next[existing].text !== tAny.text) { next[existing].text = tAny.text; changed = true; }
+        } else {
+          next.push({ id: tAny.id, text: tAny.text, isAgent }); changed = true;
+        }
       });
       return changed ? next : prev;
     });
@@ -167,19 +166,58 @@ function TranscriptBox() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  if (messages.length === 0) return <p className="text-sm text-slate-400 italic mb-4">Waiting for conversation…</p>;
+  const statusConfig = {
+    waiting: { label: "Connecting…",    dot: "bg-slate-300",                 },
+    ringing: { label: "Ringing Phone…", dot: "bg-amber-400 animate-pulse",   },
+    active:  { label: "Call Active",    dot: "bg-emerald-500 animate-pulse", },
+    ended:   { label: "Call Ended",     dot: "bg-rose-400",                  },
+  };
+  const cfg = statusConfig[callStatus];
 
   return (
-    <div className="w-full max-h-40 overflow-y-auto flex flex-col gap-2 mb-4 pr-1">
-      {messages.slice(-6).map((m, i) => (
-        <div key={`${m.id}-${i}`} className={`flex ${m.isAgent ? "justify-start" : "justify-end"}`}>
-          <div className={`px-3 py-2 rounded-xl text-xs max-w-[85%] ${m.isAgent ? "bg-slate-100 text-slate-700" : "bg-emerald-50 border border-emerald-200 text-slate-700"}`}>
-            <span className={`block text-[10px] font-bold mb-0.5 ${m.isAgent ? "text-emerald-600" : "text-slate-400"}`}>{m.isAgent ? "AISHA" : "CUSTOMER"}</span>
-            {m.text}
-          </div>
+    <div className="w-full flex flex-col items-center gap-3">
+      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-1.5 rounded-full">
+        <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">{cfg.label}</span>
+      </div>
+      <p className="text-xs text-slate-400">
+        {participants.length > 0
+          ? `${participants.length} participant${participants.length !== 1 ? "s" : ""} in room`
+          : "Waiting for call to connect…"}
+      </p>
+      <div className="flex items-end gap-1 h-12 w-36">
+        {[...Array(7)].map((_, i) => (
+          <div
+            key={i}
+            className={`flex-1 rounded-sm ${
+              callStatus === "active" ? "bg-emerald-500" : "bg-slate-200"
+            }`}
+            style={{
+              height: callStatus === "active" ? `${30 + ((i * 17 + Date.now() / 200) % 60)}%` : "20%",
+              transition: "height 0.3s ease",
+            }}
+          />
+        ))}
+      </div>
+      {messages.length > 0 ? (
+        <div className="w-full max-h-40 overflow-y-auto flex flex-col gap-2 mt-2 pr-1">
+          {messages.slice(-6).map((m, i) => (
+            <div key={`${m.id}-${i}`} className={`flex ${m.isAgent ? "justify-start" : "justify-end"}`}>
+              <div className={`px-3 py-2 rounded-xl text-xs max-w-[85%] ${
+                m.isAgent ? "bg-slate-100 text-slate-700" : "bg-emerald-50 border border-emerald-200 text-slate-700"
+              }`}>
+                <span className={`block text-[10px] font-bold mb-0.5 ${
+                  m.isAgent ? "text-emerald-600" : "text-slate-400"
+                }`}>{m.isAgent ? "AISHA" : "CUSTOMER"}</span>
+                {m.text}
+              </div>
+            </div>
+          ))}
+          <div ref={bottomRef} />
         </div>
-      ))}
-      <div ref={bottomRef} />
+      ) : (
+        <p className="text-xs text-slate-400 italic mt-2">Conversation transcript will appear here…</p>
+      )}
     </div>
   );
 }
