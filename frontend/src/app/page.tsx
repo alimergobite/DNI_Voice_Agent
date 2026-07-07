@@ -317,7 +317,11 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
         body: JSON.stringify({
           phone_number: contact.phone,
           customer_name: contact.name,
-          policy_type: contact.policyType || "individual"
+          policy_type: contact.policyType || "individual",
+          date_of_birth: contact.dateOfBirth,
+          emirates_id: contact.emiratesId,
+          company_name: contact.companyName,
+          trade_licence: contact.tradeLicence
         })
       });
       const dialData = await dialRes.json();
