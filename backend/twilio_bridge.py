@@ -45,6 +45,10 @@ class DialRequest(BaseModel):
     phone_number: str
     customer_name: str = "Valued Customer"
     policy_type: str = "individual"
+    date_of_birth: str = "NOT_PROVIDED"
+    emirates_id: str = "NOT_PROVIDED"
+    company_name: str = "NOT_PROVIDED"
+    trade_licence: str = "NOT_PROVIDED"
 
 @router.post("/api/dial")
 async def dial_outbound(request: DialRequest):
@@ -75,6 +79,10 @@ async def dial_outbound(request: DialRequest):
     metadata = json.dumps({
         "customer_name": request.customer_name,
         "policy_type": request.policy_type,
+        "date_of_birth": request.date_of_birth,
+        "emirates_id": request.emirates_id,
+        "company_name": request.company_name,
+        "trade_licence": request.trade_licence,
         "phone": request.phone_number,
         "tts_provider": "elevenlabs",
         "call_sid": call.sid

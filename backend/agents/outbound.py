@@ -152,9 +152,13 @@ async def entrypoint(ctx: JobContext):
     instructions = get_outbound_prompt(customer_name, policy_type, metadata)
     greeting_text = f"Hi, this is Aisha from Dubai National Insurance. Am I speaking with {customer_name}?"
 
+    from livekit.plugins import silero
+    vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.2)
+
     # Build the session
     session = AgentSession(
         stt=get_stt_engine(),
+        vad=vad,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
     )

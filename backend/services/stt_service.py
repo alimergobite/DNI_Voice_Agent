@@ -8,5 +8,7 @@ def get_stt_engine():
     """
     return deepgram.STT(
         model="nova-2-general",
-        api_key=settings.DEEPGRAM_API_KEY
+        api_key=settings.DEEPGRAM_API_KEY,
+        endpointing_ms=300,
+        smart_format=True
     )
