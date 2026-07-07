@@ -145,21 +145,31 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                 import traceback
                 traceback.print_exc()
 
+        # Helper to start processing agent audio
+        def start_agent_audio(remote_track: rtc.Track):
+            nonlocal agent_audio_task, agent_started
+            if remote_track.kind == rtc.TrackKind.KIND_AUDIO and not agent_started:
+                agent_started = True
+                print("[Twilio Bridge] Agent audio track found — starting stream to phone")
+                try:
+                    audio_stream = rtc.AudioStream(remote_track)
+                    agent_audio_task = asyncio.ensure_future(process_agent_audio(audio_stream))
+                except Exception as e:
+                    print(f"[Twilio Bridge] Failed to create AudioStream: {e}")
+
         @room.on("track_subscribed")
         def on_track_subscribed(
             remote_track: rtc.Track,
             publication: rtc.RemoteTrackPublication,
             participant: rtc.RemoteParticipant
         ):
-            nonlocal agent_audio_task, agent_started
-            if remote_track.kind == rtc.TrackKind.KIND_AUDIO and not agent_started:
-                agent_started = True
-                print("[Twilio Bridge] Agent audio track subscribed — starting stream to phone")
-                try:
-                    audio_stream = rtc.AudioStream(remote_track)
-                    agent_audio_task = asyncio.ensure_future(process_agent_audio(audio_stream))
-                except Exception as e:
-                    print(f"[Twilio Bridge] Failed to create AudioStream: {e}")
+            start_agent_audio(remote_track)
+
+        # Check if the agent is already in the room and published its track before we connected
+        for participant in room.remote_participants.values():
+            for publication in participant.track_publications.values():
+                if publication.track:
+                    start_agent_audio(publication.track)
 
         # Main loop: receive Twilio WebSocket messages
         async for raw in websocket.iter_text():

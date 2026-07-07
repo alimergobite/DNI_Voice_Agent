@@ -180,8 +180,16 @@ async def entrypoint(ctx: JobContext):
         lambda *args: asyncio.create_task(process_call_log(session, customer_name, policy_type)),
     )
 
-    # Wait for the Twilio Bridge participant to join before greeting
-    await ctx.wait_for_participant()
+    # Wait specifically for the Twilio Bridge participant (phone_) to join before greeting
+    phone_participant = None
+    while not phone_participant:
+        # Check existing participants
+        for p in ctx.room.remote_participants.values():
+            if p.identity.startswith("phone_"):
+                phone_participant = p
+                break
+        if not phone_participant:
+            await asyncio.sleep(0.1)
 
     try:
         # Small pause so WebRTC audio path is fully established
