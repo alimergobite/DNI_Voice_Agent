@@ -167,8 +167,15 @@ async def entrypoint(ctx: JobContext):
     # Connect and subscribe ONLY to audio tracks
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
-    # Start the agent session against the room
-    await session.start(room=ctx.room, agent=Agent(instructions=instructions))
+    from livekit.agents.voice.room_io import RoomInputOptions
+    room_input_options = RoomInputOptions(participant_identity=f"phone_{ctx.room.name}")
+
+    # Start the agent session against the room, locked to the phone participant
+    await session.start(
+        room=ctx.room, 
+        agent=Agent(instructions=instructions),
+        room_input_options=room_input_options
+    )
 
     @ctx.room.on("participant_disconnected")
     def on_participant_disconnected(participant):
