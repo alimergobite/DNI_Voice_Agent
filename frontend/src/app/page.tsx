@@ -7,7 +7,9 @@ import {
   useTranscriptions,
   useRemoteParticipants,
   useRoomContext,
+  useConnectionState,
 } from "@livekit/components-react";
+import { ConnectionState } from "livekit-client";
 import "@livekit/components-styles";
 import { 
   Mic, LayoutDashboard, LineChart, Bot, Megaphone, 
@@ -83,7 +85,6 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
           token={token}
           serverUrl={url}
           connect={true}
-          onDisconnected={onEnd}
           audio={false}
           video={false}
           className="w-full flex flex-col items-center"
@@ -104,39 +105,21 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
 
 // ─── CallStatusPanel — single component for spectators ────────────────────────
 function CallStatusPanel({ onEnd }: { onEnd: () => void }) {
-  const room = useRoomContext();
-  const [participants, setParticipants] = useState<import("livekit-client").RemoteParticipant[]>([]);
+  const participants = useRemoteParticipants();
+  const connectionState = useConnectionState();
   const transcriptions = useTranscriptions();
   const [phoneEverJoined, setPhoneEverJoined] = useState(false);
   const [callStatus, setCallStatus] = useState<"waiting" | "ringing" | "active" | "ended">("waiting");
   const [messages, setMessages] = useState<{ id: string; text: string; isAgent: boolean }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Manual participant sync from the raw room object
-  useEffect(() => {
-    if (!room) return;
-
-    const syncParticipants = () => {
-      const pList = Array.from(room.remoteParticipants.values());
-      console.log("[RoomMonitor] Participants in room:", pList.map(p => p.identity));
-      setParticipants(pList);
-    };
-
-    // Initial sync
-    syncParticipants();
-
-    // Listen to all participant events
-    room.on("participantConnected", syncParticipants);
-    room.on("participantDisconnected", syncParticipants);
-    
-    return () => {
-      room.off("participantConnected", syncParticipants);
-      room.off("participantDisconnected", syncParticipants);
-    };
-  }, [room]);
-
   // Participant presence → call status
   useEffect(() => {
+    // If the spectator is currently reconnecting or disconnected, DO NOT trigger the close logic!
+    if (connectionState !== ConnectionState.Connected) {
+      return;
+    }
+
     const hasPhone = participants.some(p => p.identity.startsWith("phone_"));
     const hasAgent = participants.some(
       p => !p.identity.startsWith("phone_") &&
@@ -167,7 +150,7 @@ function CallStatusPanel({ onEnd }: { onEnd: () => void }) {
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [participants, phoneEverJoined, onEnd]);
+  }, [participants, phoneEverJoined, connectionState, onEnd]);
 
   // Transcriptions
   useEffect(() => {
