@@ -24,6 +24,14 @@ async def twiml_callback(room_name: str):
     )
     return HTMLResponse(content=twiml_str, media_type="text/xml")
 
+@router.get("/api/twilio_log")
+async def get_twilio_log():
+    import os
+    if os.path.exists("/tmp/twilio_media_error.log"):
+        with open("/tmp/twilio_media_error.log", "r") as f:
+            return {"log": f.read()}
+    return {"log": "No log file"}
+
 class DialRequest(BaseModel):
     phone_number: str
     customer_name: str = "Valued Customer"
@@ -178,6 +186,8 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
 
         # Main loop: receive Twilio WebSocket messages
         tw_ratecv_state = None
+        tw_audio_buffer = bytearray()
+        
         async for raw in websocket.iter_text():
             msg = json.loads(raw)
             event = msg.get("event")
@@ -194,15 +204,22 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     
                     # Upsample 8kHz -> 16kHz (MUST KEEP STATE BETWEEN FRAMES)
                     pcm_16k, tw_ratecv_state = audioop.ratecv(pcm_8k, 2, 1, 8000, 16000, tw_ratecv_state)
-                    samples = len(pcm_16k) // 2
                     
-                    frame = rtc.AudioFrame(
-                        data=pcm_16k,
-                        sample_rate=16000,
-                        num_channels=1,
-                        samples_per_channel=samples
-                    )
-                    await audio_source.capture_frame(frame)
+                    # Buffer and send EXACTLY 10ms chunks (160 samples @ 16kHz = 320 bytes)
+                    # WebRTC silently drops frames that are not 10ms!
+                    tw_audio_buffer.extend(pcm_16k)
+                    while len(tw_audio_buffer) >= 320:
+                        chunk = bytes(tw_audio_buffer[:320])
+                        tw_audio_buffer = tw_audio_buffer[320:]
+                        
+                        frame = rtc.AudioFrame(
+                            data=chunk,
+                            sample_rate=16000,
+                            num_channels=1,
+                            samples_per_channel=160
+                        )
+                        await audio_source.capture_frame(frame)
+                        
                 except Exception as e:
                     with open("/tmp/twilio_media_error.log", "a") as f:
                         f.write(f"Media Event Error: {e}\n")
