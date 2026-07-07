@@ -40,7 +40,9 @@ async def dial_outbound(request: DialRequest):
             twiml=twiml_str,
             to=request.phone_number,
             from_=os.getenv("TWILIO_PHONE_NUMBER"),
-            record=True  # Enables call recording on Twilio
+            record=True,
+            machine_detection="Enable",
+            async_amd="false"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -103,8 +105,9 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
             print("[Twilio Bridge] process_agent_audio task started")
             out_buffer = bytearray()
             ratecv_state = None
-            try:
-                async for event in audio_stream:
+            
+            async for event in audio_stream:
+                try:
                     if stream_sid_box["sid"] is None:
                         continue
 
@@ -136,14 +139,9 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                             "streamSid": stream_sid_box["sid"],
                             "media": {"payload": payload}
                         })
-                        try:
-                            await websocket.send_text(msg)
-                        except Exception:
-                            return
-            except Exception as e:
-                print(f"[Twilio Bridge] Error in process_agent_audio: {e}")
-                import traceback
-                traceback.print_exc()
+                        await websocket.send_text(msg)
+                except Exception as e:
+                    print(f"[Twilio Bridge] Frame drop error: {e}")
 
         # Helper to start processing agent audio
         def start_agent_audio(remote_track: rtc.Track):
