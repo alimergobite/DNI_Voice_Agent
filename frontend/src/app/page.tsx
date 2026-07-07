@@ -797,7 +797,8 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] font-sans flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl p-10 w-full max-w-md shadow-2xl flex flex-col items-center">
+      <div className="bg-white rounded-3xl p-10 w-full max-w-md shadow-2xl flex flex-col items-center relative">
+        <div className="absolute top-4 right-6 text-[10px] font-bold text-slate-300">v1.2 (Crash Shield Active)</div>
         <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-6">
           <Mic className="text-emerald-500" size={32} />
         </div>
