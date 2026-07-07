@@ -7,6 +7,7 @@ import {
   useVoiceAssistant,
   BarVisualizer,
   useTranscriptions,
+  useRemoteParticipants,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { 
@@ -87,6 +88,7 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
           audio={true}
           className="w-full flex flex-col items-center"
         >
+          <RoomMonitor onEnd={onEnd} />
           <RoomAudioRenderer />
           <AgentVisualizer />
           <TranscriptBox />
@@ -102,17 +104,36 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
   );
 }
 
+function RoomMonitor({ onEnd }: { onEnd: () => void }) {
+  const participants = useRemoteParticipants();
+  const [hasConnected, setHasConnected] = useState(false);
+  useEffect(() => {
+    if (participants.length > 0) setHasConnected(true);
+    if (hasConnected && participants.length === 0) {
+      onEnd();
+    }
+  }, [participants.length, hasConnected, onEnd]);
+  return null;
+}
+
 function AgentVisualizer() {
   const { state, audioTrack } = useVoiceAssistant();
+  const participants = useRemoteParticipants();
+  const agentParticipant = participants.find(p => !p.identity.startsWith("phone_"));
+  
+  // If useVoiceAssistant fails to find the agent, fallback to checking if any agent participant exists
+  const activeState = (state === "connecting" && agentParticipant) ? "speaking" : state;
+  
   const stateLabels: Record<string, string> = { speaking: "Speaking", listening: "Listening", thinking: "Thinking", idle: "Idle", connecting: "Connecting" };
   const stateDotColors: Record<string, string> = { speaking: "bg-emerald-400 animate-pulse", listening: "bg-sky-400 animate-pulse", thinking: "bg-amber-400 animate-bounce", idle: "bg-slate-300", connecting: "bg-slate-300" };
+  
   return (
     <div className="flex flex-col items-center w-full mb-4">
       <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-1.5 rounded-full mb-4">
-        <div className={`w-2 h-2 rounded-full ${stateDotColors[state] || "bg-slate-300"}`} />
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">{stateLabels[state] || state}</span>
+        <div className={`w-2 h-2 rounded-full ${stateDotColors[activeState] || "bg-slate-300"}`} />
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">{stateLabels[activeState] || activeState}</span>
       </div>
-      <BarVisualizer state={state} trackRef={audioTrack} barCount={7} options={{ minHeight: 12 }} className="w-36 h-12 fill-emerald-500" />
+      <BarVisualizer state={activeState as any} trackRef={audioTrack} barCount={7} options={{ minHeight: 12 }} className="w-36 h-12 fill-emerald-500" />
     </div>
   );
 }
