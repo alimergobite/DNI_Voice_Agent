@@ -147,9 +147,9 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
             if remote_track.kind == rtc.TrackKind.KIND_AUDIO and not agent_started:
                 agent_started = True
                 print("[Twilio Bridge] Agent audio track subscribed — starting stream to phone")
-                # Use from_track with explicit 8kHz mono so LiveKit resamples internally
-                audio_stream = rtc.AudioStream.from_track(
-                    track=remote_track,
+                # Use standard constructor with explicit 8kHz mono so LiveKit resamples internally
+                audio_stream = rtc.AudioStream(
+                    remote_track,
                     sample_rate=8000,
                     num_channels=1,
                 )

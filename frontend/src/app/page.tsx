@@ -89,7 +89,6 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
           video={false}
           className="w-full flex flex-col items-center"
         >
-          <RoomAudioRenderer />
           <CallStatusPanel onEnd={onEnd} />
           <button
             onClick={onEnd}
