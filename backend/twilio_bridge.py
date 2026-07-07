@@ -4,12 +4,25 @@ import base64
 import audioop
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from twilio.rest import Client
 from livekit import rtc
 from .config import settings
 
 router = APIRouter()
+
+@router.post("/api/twiml/{room_name}")
+async def twiml_callback(room_name: str):
+    """Twilio hits this URL ONLY when the call is answered (or human detected)."""
+    twiml_str = (
+        f'<Response>'
+        f'<Connect>'
+        f'<Stream url="wss://demo2.ergobite.com/ws/twilio/{room_name}" />'
+        f'</Connect>'
+        f'</Response>'
+    )
+    return HTMLResponse(content=twiml_str, media_type="text/xml")
 
 class DialRequest(BaseModel):
     phone_number: str
@@ -25,19 +38,13 @@ async def dial_outbound(request: DialRequest):
 
     room_name = f"twilio_{request.phone_number.strip('+')}_{os.urandom(4).hex()}"
 
-    # Step 1: Dial the customer via Twilio and enable recording
-    twiml_str = (
-        f'<Response>'
-        f'<Connect>'
-        f'<Stream url="wss://demo2.ergobite.com/ws/twilio/{room_name}" />'
-        f'</Connect>'
-        f'</Response>'
-    )
+    # Use a webhook URL so Twilio AMD can delay the TwiML execution until human detection
+    twiml_url = f"https://demo2.ergobite.com/api/twiml/{room_name}"
 
     client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
     try:
         call = client.calls.create(
-            twiml=twiml_str,
+            url=twiml_url,
             to=request.phone_number,
             from_=os.getenv("TWILIO_PHONE_NUMBER"),
             record=True,
