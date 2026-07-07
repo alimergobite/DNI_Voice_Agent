@@ -464,25 +464,29 @@ export default function Home() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/calls`);
       if (res.ok) {
         const data = await res.json();
-        const formattedCalls = data.map((call: any) => ({
-          id: call.call_id || `#CAL-${call.id}`,
-          customer_name: call.customer_name,
-          phone: call.phone_number,
-          policy_type: call.policy_type,
-          date_of_birth: call.date_of_birth,
-          emirates_id: call.emirates_id,
-          company_name: call.company_name,
-          trade_licence: call.trade_licence,
-          date: new Date(call.start_time).toLocaleDateString(),
-          duration: call.duration_seconds 
-            ? `${Math.floor(call.duration_seconds / 60)}:${(call.duration_seconds % 60).toString().padStart(2, '0')}` 
-            : "0:00",
-          rating: call.rating ? `${call.rating}/10` : null,
-          status: call.status || "Completed",
-          transcript: call.transcript,
-          recording_url: call.recording_url,
-        }));
-        setCalls(formattedCalls);
+        if (Array.isArray(data)) {
+          const formattedCalls = data.map((call: any) => ({
+            id: String(call.call_id || `#CAL-${call.id}`),
+            customer_name: call.customer_name ? String(call.customer_name) : null,
+            phone: String(call.phone_number || ""),
+            policy_type: String(call.policy_type || "individual"),
+            date_of_birth: call.date_of_birth ? String(call.date_of_birth) : null,
+            emirates_id: call.emirates_id ? String(call.emirates_id) : null,
+            company_name: call.company_name ? String(call.company_name) : null,
+            trade_licence: call.trade_licence ? String(call.trade_licence) : null,
+            date: new Date(call.start_time).toLocaleDateString(),
+            duration: call.duration_seconds 
+              ? `${Math.floor(Number(call.duration_seconds) / 60)}:${(Number(call.duration_seconds) % 60).toString().padStart(2, '0')}` 
+              : "0:00",
+            rating: call.rating ? `${String(call.rating)}/10` : null,
+            status: String(call.status || "Completed"),
+            transcript: call.transcript ? String(call.transcript) : null,
+            recording_url: call.recording_url ? String(call.recording_url) : null,
+          }));
+          setCalls(formattedCalls);
+        } else {
+          console.error("API did not return an array of calls:", data);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch calls:", err);
