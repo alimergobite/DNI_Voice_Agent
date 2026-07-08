@@ -37,8 +37,9 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
         The user's actual date of birth is {dob} (Format: YYYY-MM-DD, e.g., 1990-02-03 means February 3rd, 1990). 
         The last 4 digits of their Emirates ID are {emirates_id}.
         Ask: "Could you provide your date of birth?"
-        Wait for response. You MUST accept ANY spoken format of the date (e.g. "3rd Feb 1990", "February third", "3 2 1990") as long as the day, month, and year semantically match {dob}. Be extremely lenient with the spoken format!
-        If it does NOT logically match {dob}, politely say: "I'm sorry, that does not match our records. Could you please verify your date of birth once more?"
+        Wait for response. You MUST accept ANY spoken format or variation of the date. Be incredibly forgiving! 
+        If they say anything remotely matching {dob} (like "3rd Feb two thousand one", "03 02", "February 3rd", or even just the correct year/month), you MUST consider it a MATCH and proceed to the next step. DO NOT reject it unless it is completely and obviously wrong (like a different decade entirely).
+        If it is completely wrong, politely say: "I'm sorry, that does not match our records. Could you please verify your date of birth once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         If it logically matches {dob}, Ask: "Could you provide the last four digits of your Emirates ID?"
         Wait for response. You MUST accept ANY spoken format of the digits (e.g. "five six seven eight", "fifty six seventy eight", "5 6 7 8") as long as they semantically represent the digits '{emirates_id}'. Be extremely lenient!
