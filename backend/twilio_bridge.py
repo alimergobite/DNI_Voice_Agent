@@ -3,6 +3,7 @@ import json
 import base64
 import audioop
 import asyncio
+import uuid
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
