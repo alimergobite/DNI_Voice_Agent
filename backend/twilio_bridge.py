@@ -220,7 +220,24 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     mulaw = base64.b64decode(msg["media"]["payload"])
                     pcm_8k = audioop.ulaw2lin(mulaw, 2)
                     
-                    # Pass raw Twilio audio directly to LiveKit without zeroing it out
+                    # --- SENSITIVE NOISE GATE ---
+                    # Twilio injects continuous 'comfort noise' (RMS ~10-30).
+                    # We must silence it so the AI's VAD can detect when the user stops speaking.
+                    # We use a very low threshold (50) so quiet words like "yes" still open the gate.
+                    rms = audioop.rms(pcm_8k, 2)
+                    gate_key = f"tw_gate_hold_{room_name}"
+                    current_hold = globals().get(gate_key, 0)
+                    
+                    if rms >= 50:
+                        # Loud enough to be speech! Snap gate open and hold for 30 frames (~600ms)
+                        current_hold = 30
+                    
+                    if current_hold > 0:
+                        current_hold -= 1
+                        globals()[gate_key] = current_hold
+                    else:
+                        # Gate is closed. Silence the comfort noise perfectly.
+                        pcm_8k = b'\x00' * len(pcm_8k)
                     
                     # Upsample 8kHz -> 16kHz (MUST KEEP STATE BETWEEN FRAMES)
                     pcm_16k, tw_ratecv_state = audioop.ratecv(pcm_8k, 2, 1, 8000, 16000, tw_ratecv_state)
