@@ -43,12 +43,13 @@ async def get_twilio_log():
 
 class DialRequest(BaseModel):
     phone_number: str
-    customer_name: str = "Valued Customer"
-    policy_type: str = "individual"
-    date_of_birth: str = "NOT_PROVIDED"
-    emirates_id: str = "NOT_PROVIDED"
-    company_name: str = "NOT_PROVIDED"
-    trade_licence: str = "NOT_PROVIDED"
+    customer_name: str
+    policy_type: str
+    date_of_birth: str = ""
+    emirates_id: str = ""
+    company_name: str = ""
+    trade_licence: str = ""
+    from_number: Optional[str] = None
 
 @router.post("/api/dial")
 async def dial_outbound(request: DialRequest):
@@ -57,17 +58,19 @@ async def dial_outbound(request: DialRequest):
 
     from livekit import api as lkapi
 
-    room_name = f"twilio_{request.phone_number.strip('+')}_{os.urandom(4).hex()}"
+    room_name = f"dni-outbound-{uuid.uuid4().hex[:8]}"
 
-    # Use a webhook URL so Twilio AMD can delay the TwiML execution until human detection
-    twiml_url = f"https://demo2.ergobite.com/api/twiml/{room_name}"
-
-    client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+    # Step 1: Initiate outbound call via Twilio REST API
+    client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
+    
+    # Determine which number to dial from
+    caller_id = request.from_number.strip() if request.from_number and request.from_number.strip() else os.getenv("TWILIO_PHONE_NUMBER")
+    
     try:
         call = client.calls.create(
-            url=twiml_url,
+            url=f"https://demo2.ergobite.com/api/twiml/{room_name}",
             to=request.phone_number,
-            from_=os.getenv("TWILIO_PHONE_NUMBER"),
+            from_=caller_id,
             record=True,
             machine_detection="Enable",
             async_amd="false"
