@@ -227,8 +227,8 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                         with open("/tmp/twilio_media_debug.log", "a") as f:
                             f.write(f"RMS: {rms}\n")
                             
-                    if rms < 1500:
-                        # Completely silence comfort noise so VAD endpoints immediately
+                    if rms < 100:
+                        # Completely silence micro-static
                         pcm_8k = b'\x00' * len(pcm_8k)
                     
                     # Upsample 8kHz -> 16kHz (MUST KEEP STATE BETWEEN FRAMES)

@@ -156,7 +156,7 @@ async def entrypoint(ctx: JobContext):
     tts_provider = metadata.get("tts_provider", "elevenlabs")
 
     instructions = get_outbound_prompt(customer_name, policy_type, metadata)
-    greeting_text = f"Hi, this is Aisha from Dubai National Insurance. Am I speaking with {customer_name}?"
+    greeting_text = f"Hi, this is Aisha from Dubai National Insurance. Could you please confirm your full name for me?"
 
     # Build the session
     session = AgentSession(
