@@ -220,15 +220,12 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     mulaw = base64.b64decode(msg["media"]["payload"])
                     pcm_8k = audioop.ulaw2lin(mulaw, 2)
                     
-                    # --- SENSITIVE NOISE GATE ---
-                    # Twilio injects continuous 'comfort noise' (RMS ~10-30).
-                    # We must silence it so the AI's VAD can detect when the user stops speaking.
-                    # We use a very low threshold (50) so quiet words like "yes" still open the gate.
+                    # --- PROFESSIONAL NOISE GATE WITH HOLD ---
                     rms = audioop.rms(pcm_8k, 2)
                     gate_key = f"tw_gate_hold_{room_name}"
                     current_hold = globals().get(gate_key, 0)
                     
-                    if rms >= 50:
+                    if rms >= 400:
                         # Loud enough to be speech! Snap gate open and hold for 30 frames (~600ms)
                         current_hold = 30
                     
