@@ -220,23 +220,10 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     mulaw = base64.b64decode(msg["media"]["payload"])
                     pcm_8k = audioop.ulaw2lin(mulaw, 2)
                     
-                    # --- PROFESSIONAL NOISE GATE WITH HOLD ---
-                    # Comfort noise is usually 100-150 RMS. Soft speech like "yes" is 250-400 RMS.
-                    # A threshold of 200 perfectly blocks comfort noise while allowing soft speech.
-                    rms = audioop.rms(pcm_8k, 2)
-                    gate_key = f"tw_gate_hold_{room_name}"
-                    current_hold = globals().get(gate_key, 0)
-                    
-                    if rms >= 200:
-                        # Loud enough to be speech! Snap gate open and hold for 30 frames (~600ms)
-                        current_hold = 30
-                    
-                    if current_hold > 0:
-                        current_hold -= 1
-                        globals()[gate_key] = current_hold
-                    else:
-                        # Gate is closed. Silence the comfort noise perfectly.
-                        pcm_8k = b'\x00' * len(pcm_8k)
+                    # --- NO NOISE GATE ---
+                    # We pass raw Twilio audio to LiveKit. We rely on Silero VAD's neural network 
+                    # to filter out comfort noise, rather than a raw RMS volume gate.
+                    pass
                     
                     # Upsample 8kHz -> 16kHz (MUST KEEP STATE BETWEEN FRAMES)
                     pcm_16k, tw_ratecv_state = audioop.ratecv(pcm_8k, 2, 1, 8000, 16000, tw_ratecv_state)
