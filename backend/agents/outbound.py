@@ -156,7 +156,7 @@ async def entrypoint(ctx: JobContext):
     tts_provider = metadata.get("tts_provider", "elevenlabs")
 
     instructions = get_outbound_prompt(customer_name, policy_type, metadata)
-    greeting_text = f"Hi, this is Aisha from Dubai National Insurance. Could you please confirm your full name for me?"
+    greeting_text = f"Hi, this is Aisha from Dubai National Insurance. Am I speaking with {customer_name}?"
 
     # Build the session
     session = AgentSession(
@@ -164,8 +164,6 @@ async def entrypoint(ctx: JobContext):
         vad=custom_vad,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
-        min_endpointing_delay=0.1,
-        max_endpointing_delay=0.5,
     )
 
     # Store start time and metadata for call logging
