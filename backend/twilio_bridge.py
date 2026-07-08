@@ -221,7 +221,13 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     # --- NOISE GATE ---
                     # Calculate RMS volume (0 to 32767) to detect Twilio comfort noise
                     rms = audioop.rms(pcm_8k, 2)
-                    if rms < 200:
+                    
+                    # Log the RMS every 100 frames to see the noise floor
+                    if getattr(audio_source, "_debug_frame_count", 0) % 100 == 0:
+                        with open("/tmp/twilio_media_debug.log", "a") as f:
+                            f.write(f"RMS: {rms}\n")
+                            
+                    if rms < 1500:
                         # Completely silence comfort noise so VAD endpoints immediately
                         pcm_8k = b'\x00' * len(pcm_8k)
                     
