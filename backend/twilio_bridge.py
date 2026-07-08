@@ -211,6 +211,8 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
             if event == "start":
                 stream_sid_box["sid"] = msg["start"]["streamSid"]
                 print(f"[Twilio] Stream started: {stream_sid_box['sid']} for room {room_name}")
+                # Initialize Noise Gate hold timer
+                globals()[f"tw_gate_hold_{room_name}"] = 0
 
             elif event == "media":
                 try:
@@ -218,18 +220,20 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     mulaw = base64.b64decode(msg["media"]["payload"])
                     pcm_8k = audioop.ulaw2lin(mulaw, 2)
                     
-                    # --- NOISE GATE ---
-                    # Calculate RMS volume (0 to 32767) to detect Twilio comfort noise
+                    # --- PROFESSIONAL NOISE GATE WITH HOLD ---
                     rms = audioop.rms(pcm_8k, 2)
+                    gate_key = f"tw_gate_hold_{room_name}"
+                    current_hold = globals().get(gate_key, 0)
                     
-                    # Log the RMS every 100 frames to see the noise floor
-                    if getattr(audio_source, "_debug_frame_count", 0) % 100 == 0:
-                        with open("/tmp/twilio_media_debug.log", "a") as f:
-                            f.write(f"RMS: {rms}\n")
-                            
-                    if rms < 400:
-                        # Completely silence comfort noise (usually 150-300 RMS) 
-                        # but allow soft speech (800+ RMS) to pass through.
+                    if rms >= 400:
+                        # Loud enough to be speech! Snap gate open and hold for 30 frames (~600ms)
+                        current_hold = 30
+                    
+                    if current_hold > 0:
+                        current_hold -= 1
+                        globals()[gate_key] = current_hold
+                    else:
+                        # Gate is closed. Silence the comfort noise perfectly.
                         pcm_8k = b'\x00' * len(pcm_8k)
                     
                     # Upsample 8kHz -> 16kHz (MUST KEEP STATE BETWEEN FRAMES)
