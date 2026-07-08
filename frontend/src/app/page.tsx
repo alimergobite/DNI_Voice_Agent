@@ -516,8 +516,7 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
             <div>
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Phone Number</label>
               <div className="flex border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-400">
-                <span className="px-3 py-3 bg-slate-50 text-slate-600 font-medium text-sm border-r border-slate-200">+971</span>
-                <input type="tel" placeholder="50 000 0000" value={form.phone} onChange={e => update("phone", e.target.value)} className="flex-1 px-3 py-3 text-slate-800 focus:outline-none w-full" />
+                <input type="tel" placeholder="+91 9999 99999" value={form.phone} onChange={e => update("phone", e.target.value)} className="flex-1 px-4 py-3 text-slate-800 focus:outline-none w-full" />
               </div>
             </div>
             <div>
