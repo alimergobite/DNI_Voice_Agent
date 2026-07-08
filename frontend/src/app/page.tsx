@@ -275,7 +275,6 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
   onCallStart: (token: string) => void;
 }) {
   const [ttsProvider, setTtsProvider] = useState("elevenlabs");
-  const [fromNumber, setFromNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -322,8 +321,7 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
           date_of_birth: contact.dateOfBirth,
           emirates_id: contact.emiratesId,
           company_name: contact.companyName,
-          trade_licence: contact.tradeLicence,
-          from_number: fromNumber
+          trade_licence: contact.tradeLicence
         })
       });
       const dialData = await dialRes.json();
@@ -385,16 +383,6 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
               </button>
             </div>
           </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2 mt-4">Caller ID (Optional)</label>
-            <input 
-              type="tel" 
-              placeholder="Leave blank for default Twilio number" 
-              value={fromNumber} 
-              onChange={e => setFromNumber(e.target.value)} 
-              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm"
-            />
-          </div>
           {error && <p className="text-sm text-rose-500">{error}</p>}
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -421,7 +409,6 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
 // ─── New Call Form Modal ──────────────────────────────────────────────────────
 function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallStart: (token: string) => void }) {
   const [form, setForm] = useState<FormData>({ policyType: "individual", phone: "", contactName: "", dateOfBirth: "", emiratesId: "", companyName: "", tradeLicence: "", ttsProvider: "elevenlabs", elevenlabsApiKey: "" });
-  const [fromNumber, setFromNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -472,8 +459,7 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
           date_of_birth: form.dateOfBirth,
           emirates_id: form.emiratesId,
           company_name: form.companyName,
-          trade_licence: form.tradeLicence,
-          from_number: fromNumber
+          trade_licence: form.tradeLicence
         })
       });
       const dialData = await dialRes.json();
@@ -580,18 +566,6 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
                 <ChevronDown size={16} />
               </div>
             </div>
-          </div>
-          
-          {/* Caller ID */}
-          <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5 mt-2">Caller ID (Optional)</label>
-            <input 
-              type="tel" 
-              placeholder="Leave blank for default Twilio number" 
-              value={fromNumber} 
-              onChange={e => setFromNumber(e.target.value)} 
-              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm"
-            />
           </div>
 
           {error && <p className="text-sm text-rose-500">{error}</p>}

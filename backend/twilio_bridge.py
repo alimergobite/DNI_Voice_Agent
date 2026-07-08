@@ -49,7 +49,6 @@ class DialRequest(BaseModel):
     emirates_id: str = ""
     company_name: str = ""
     trade_licence: str = ""
-    from_number: Optional[str] = None
 
 @router.post("/api/dial")
 async def dial_outbound(request: DialRequest):
@@ -63,14 +62,11 @@ async def dial_outbound(request: DialRequest):
     # Step 1: Initiate outbound call via Twilio REST API
     client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
     
-    # Determine which number to dial from
-    caller_id = request.from_number.strip() if request.from_number and request.from_number.strip() else os.getenv("TWILIO_PHONE_NUMBER")
-    
     try:
         call = client.calls.create(
             url=f"https://demo2.ergobite.com/api/twiml/{room_name}",
             to=request.phone_number,
-            from_=caller_id,
+            from_=os.getenv("TWILIO_PHONE_NUMBER"),
             record=True,
             machine_detection="Enable",
             async_amd="false"
