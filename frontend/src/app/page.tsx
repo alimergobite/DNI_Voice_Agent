@@ -421,6 +421,7 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
 // ─── New Call Form Modal ──────────────────────────────────────────────────────
 function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallStart: (token: string) => void }) {
   const [form, setForm] = useState<FormData>({ policyType: "individual", phone: "", contactName: "", dateOfBirth: "", emiratesId: "", companyName: "", tradeLicence: "", ttsProvider: "elevenlabs", elevenlabsApiKey: "" });
+  const [fromNumber, setFromNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -455,9 +456,49 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
     setLoading(false);
   }
 
+  async function handleDialPhone() {
+    if (!form.phone || !form.contactName) { setError("Phone number and contact name are required."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      // 1. Tell FastAPI to dial Twilio
+      const dialRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/dial`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone_number: form.phone,
+          customer_name: form.contactName,
+          policy_type: form.policyType || "individual",
+          date_of_birth: form.dateOfBirth,
+          emirates_id: form.emiratesId,
+          company_name: form.companyName,
+          trade_licence: form.tradeLicence,
+          from_number: fromNumber
+        })
+      });
+      const dialData = await dialRes.json();
+      if (!dialRes.ok) throw new Error(dialData.detail || "Twilio Dial Failed");
+      
+      const roomName = dialData.room_name;
+      
+      // 2. Generate a token to spectate the LiveKit room
+      const tokenRes = await fetch("/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomName, participantName: "Dashboard Spectator", metadata: {} }),
+      });
+      const tokenData = await tokenRes.json();
+      if (tokenData.token) { onClose(); onCallStart(tokenData.token); }
+      else { setError(tokenData.error || "Failed to start room."); }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    }
+    setLoading(false);
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden my-8">
         {/* Header */}
         <div className="px-8 pt-8 pb-4">
           <div className="flex items-center justify-between mb-1">
@@ -490,7 +531,7 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Phone Number</label>
               <div className="flex border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-emerald-400">
                 <span className="px-3 py-3 bg-slate-50 text-slate-600 font-medium text-sm border-r border-slate-200">+971</span>
-                <input type="tel" placeholder="50 000 0000" value={form.phone} onChange={e => update("phone", e.target.value)} className="flex-1 px-3 py-3 text-slate-800 focus:outline-none" />
+                <input type="tel" placeholder="50 000 0000" value={form.phone} onChange={e => update("phone", e.target.value)} className="flex-1 px-3 py-3 text-slate-800 focus:outline-none w-full" />
               </div>
             </div>
             <div>
@@ -540,12 +581,29 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
               </div>
             </div>
           </div>
+          
+          {/* Caller ID */}
+          <div>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5 mt-2">Caller ID (Optional)</label>
+            <input 
+              type="tel" 
+              placeholder="Leave blank for default Twilio number" 
+              value={fromNumber} 
+              onChange={e => setFromNumber(e.target.value)} 
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm"
+            />
+          </div>
 
           {error && <p className="text-sm text-rose-500">{error}</p>}
 
-          <button onClick={handleCall} disabled={loading} className="w-full py-4 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 text-base disabled:opacity-60">
-            <Phone size={20} /> {loading ? "Connecting…" : "CALL NOW"}
-          </button>
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <button onClick={handleCall} disabled={loading} className="w-full py-4 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 text-base disabled:opacity-60">
+              <Monitor size={20} /> {loading ? "..." : "Web Call"}
+            </button>
+            <button onClick={handleDialPhone} disabled={loading} className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 text-base disabled:opacity-60">
+              <Phone size={20} /> {loading ? "..." : "Dial Phone"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
