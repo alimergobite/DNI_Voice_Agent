@@ -221,11 +221,13 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     pcm_8k = audioop.ulaw2lin(mulaw, 2)
                     
                     # --- PROFESSIONAL NOISE GATE WITH HOLD ---
+                    # Comfort noise is usually 100-150 RMS. Soft speech like "yes" is 250-400 RMS.
+                    # A threshold of 200 perfectly blocks comfort noise while allowing soft speech.
                     rms = audioop.rms(pcm_8k, 2)
                     gate_key = f"tw_gate_hold_{room_name}"
                     current_hold = globals().get(gate_key, 0)
                     
-                    if rms >= 400:
+                    if rms >= 200:
                         # Loud enough to be speech! Snap gate open and hold for 30 frames (~600ms)
                         current_hold = 30
                     
