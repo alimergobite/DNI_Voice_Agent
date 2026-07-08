@@ -70,7 +70,11 @@ async def process_call_log(session: AgentSession, customer_name: str, policy_typ
             )
             return response.text
 
-        result = await asyncio.to_thread(_call)
+        try:
+            result = await asyncio.to_thread(_call)
+        except Exception as api_err:
+            print(f"[Call Logging Error] Gemini API failed: {api_err}")
+            result = "{}"
         # Parse JSON
         extracted = {}
         try:
