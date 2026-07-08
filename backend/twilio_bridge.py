@@ -218,6 +218,13 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     mulaw = base64.b64decode(msg["media"]["payload"])
                     pcm_8k = audioop.ulaw2lin(mulaw, 2)
                     
+                    # --- NOISE GATE ---
+                    # Calculate RMS volume (0 to 32767) to detect Twilio comfort noise
+                    rms = audioop.rms(pcm_8k, 2)
+                    if rms < 200:
+                        # Completely silence comfort noise so VAD endpoints immediately
+                        pcm_8k = b'\x00' * len(pcm_8k)
+                    
                     # Upsample 8kHz -> 16kHz (MUST KEEP STATE BETWEEN FRAMES)
                     pcm_16k, tw_ratecv_state = audioop.ratecv(pcm_8k, 2, 1, 8000, 16000, tw_ratecv_state)
                     
