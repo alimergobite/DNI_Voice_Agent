@@ -219,10 +219,12 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     mulaw = base64.b64decode(msg["media"]["payload"])
                     pcm_8k = audioop.ulaw2lin(mulaw, 2)
                     
-                    # --- NO NOISE GATE ---
-                    # We pass raw Twilio audio to LiveKit. We rely on Silero VAD's neural network 
-                    # to filter out comfort noise, rather than a raw RMS volume gate.
-                    pass
+                    # --- SIMPLE NOISE GATE ---
+                    # We pass raw Twilio audio to LiveKit, but zero out extreme low-volume comfort noise
+                    # so Silero VAD correctly detects perfect digital silence during pauses.
+                    rms = audioop.rms(pcm_8k, 2)
+                    if rms < 150:
+                        pcm_8k = b'\x00' * len(pcm_8k)
                     
                     # Upsample 8kHz -> 16kHz (MUST KEEP STATE BETWEEN FRAMES)
                     pcm_16k, tw_ratecv_state = audioop.ratecv(pcm_8k, 2, 1, 8000, 16000, tw_ratecv_state)
