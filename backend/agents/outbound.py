@@ -18,8 +18,8 @@ from livekit.plugins import silero
 
 # Initialize VAD globally so it doesn't block the async event loop during job dispatch.
 # We set activation_threshold to 0.7 so Silero explicitly ignores Twilio's faint comfort noise.
-# We set min_silence_duration to 0.15 (150ms) so the agent responds incredibly fast when the user pauses.
-custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.15, activation_threshold=0.7)
+# We set min_silence_duration to 0.25 (250ms) to satisfy the TurnDetector requirement.
+custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.25, activation_threshold=0.7)
 
 from backend.services.llm_service import get_llm_engine
 from backend.services.stt_service import get_stt_engine
