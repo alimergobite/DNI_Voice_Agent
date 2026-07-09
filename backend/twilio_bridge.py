@@ -4,7 +4,7 @@ import base64
 import audioop
 import asyncio
 import uuid
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from twilio.rest import Client
@@ -14,12 +14,16 @@ from .config import settings
 router = APIRouter()
 
 @router.post("/api/twiml/{room_name}")
-async def twiml_callback(room_name: str):
+async def twiml_callback(room_name: str, request: Request):
     """Twilio hits this URL ONLY when the call is answered (or human detected)."""
+    host = request.headers.get("host", "demo3.ergobite.com")
+    protocol = request.headers.get("x-forwarded-proto", "https")
+    ws_protocol = "wss" if protocol == "https" else "ws"
+
     twiml_str = (
         f'<Response>'
         f'<Connect>'
-        f'<Stream url="wss://demo2.ergobite.com/ws/twilio/{room_name}" />'
+        f'<Stream url="{ws_protocol}://{host}/ws/twilio/{room_name}" />'
         f'</Connect>'
         f'</Response>'
     )
@@ -52,21 +56,24 @@ class DialRequest(BaseModel):
     trade_licence: str = ""
 
 @router.post("/api/dial")
-async def dial_outbound(request: DialRequest):
+async def dial_outbound(payload: DialRequest, request: Request):
     if not os.getenv("TWILIO_ACCOUNT_SID") or not os.getenv("TWILIO_AUTH_TOKEN") or not os.getenv("TWILIO_PHONE_NUMBER"):
         raise HTTPException(status_code=500, detail="Twilio credentials not configured on the server")
 
     from livekit import api as lkapi
 
     room_name = f"dni-outbound-{uuid.uuid4().hex[:8]}"
+    
+    host = request.headers.get("host", "demo3.ergobite.com")
+    protocol = request.headers.get("x-forwarded-proto", "https")
 
     # Step 1: Initiate outbound call via Twilio REST API
     client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
     
     try:
         call = client.calls.create(
-            url=f"https://demo2.ergobite.com/api/twiml/{room_name}",
-            to=request.phone_number,
+            url=f"{protocol}://{host}/api/twiml/{room_name}",
+            to=payload.phone_number,
             from_=os.getenv("TWILIO_PHONE_NUMBER"),
             record=True,
             machine_detection="Enable",
@@ -77,13 +84,13 @@ async def dial_outbound(request: DialRequest):
 
     # Build metadata including the Twilio call SID so the agent can fetch the recording later
     metadata = json.dumps({
-        "customer_name": request.customer_name,
-        "policy_type": request.policy_type,
-        "date_of_birth": request.date_of_birth,
-        "emirates_id": request.emirates_id,
-        "company_name": request.company_name,
-        "trade_licence": request.trade_licence,
-        "phone": request.phone_number,
+        "customer_name": payload.customer_name,
+        "policy_type": payload.policy_type,
+        "date_of_birth": payload.date_of_birth,
+        "emirates_id": payload.emirates_id,
+        "company_name": payload.company_name,
+        "trade_licence": payload.trade_licence,
+        "phone": payload.phone_number,
         "tts_provider": "elevenlabs",
         "call_sid": call.sid
     })
@@ -135,7 +142,6 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
         async def process_agent_audio(audio_stream: rtc.AudioStream):
             print("[Twilio Bridge] process_agent_audio task started")
             out_buffer = bytearray()
-            ratecv_state = None
             
             async for event in audio_stream:
                 try:
@@ -145,17 +151,10 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     frame = event.frame
                     pcm_bytes = bytes(frame.data)
 
-                    # 1. Resample to 8000 Hz if needed
-                    if frame.sample_rate != 8000:
-                        pcm_bytes, ratecv_state = audioop.ratecv(
-                            pcm_bytes, 2, frame.num_channels, frame.sample_rate, 8000, ratecv_state
-                        )
-                    
-                    # 2. Force mono if needed
-                    if frame.num_channels == 2:
-                        pcm_bytes = audioop.tomono(pcm_bytes, 2, 0.5, 0.5)
+                    # The frame is guaranteed to be 8000Hz mono because we used
+                    # rtc.AudioStream.from_track(..., sample_rate=8000, num_channels=1)
 
-                    # 3. Convert 16-bit PCM → 8-bit mulaw
+                    # 1. Convert 16-bit PCM → 8-bit mulaw
                     mulaw_bytes = audioop.lin2ulaw(pcm_bytes, 2)
 
                     # Buffer into 160-byte chunks (20ms @ 8kHz mulaw)
@@ -181,7 +180,7 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                 agent_started = True
                 print("[Twilio Bridge] Agent audio track found — starting stream to phone")
                 try:
-                    audio_stream = rtc.AudioStream(remote_track)
+                    audio_stream = rtc.AudioStream.from_track(track=remote_track, sample_rate=8000, num_channels=1)
                     agent_audio_task = asyncio.ensure_future(process_agent_audio(audio_stream))
                 except Exception as e:
                     print(f"[Twilio Bridge] Failed to create AudioStream: {e}")
