@@ -42,6 +42,15 @@ async def get_twilio_log():
     except Exception as e:
         return {"error": str(e)}
 
+@router.get("/api/pm2_logs")
+async def get_pm2_logs():
+    try:
+        import subprocess
+        result = subprocess.run(["pm2", "logs", "dni-backend", "--lines", "30", "--nostream"], capture_output=True, text=True)
+        return {"logs": result.stdout + result.stderr}
+    except Exception as e:
+        return {"error": str(e)}
+
 class DialRequest(BaseModel):
     phone_number: str
     customer_name: str
