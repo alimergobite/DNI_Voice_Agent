@@ -68,9 +68,7 @@ async def dial_outbound(payload: DialRequest, request: Request):
             url=f"https://demo2.ergobite.com/api/twiml/{room_name}",
             to=payload.phone_number,
             from_=os.getenv("TWILIO_PHONE_NUMBER"),
-            record=True,
-            machine_detection="Enable",
-            async_amd="true"
+            record=True
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
