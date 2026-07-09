@@ -16,14 +16,10 @@ router = APIRouter()
 @router.post("/api/twiml/{room_name}")
 async def twiml_callback(room_name: str, request: Request):
     """Twilio hits this URL ONLY when the call is answered (or human detected)."""
-    host = request.headers.get("host", "demo3.ergobite.com")
-    protocol = request.headers.get("x-forwarded-proto", "https")
-    ws_protocol = "wss" if protocol == "https" else "ws"
-
     twiml_str = (
         f'<Response>'
         f'<Connect>'
-        f'<Stream url="{ws_protocol}://{host}/ws/twilio/{room_name}" />'
+        f'<Stream url="wss://demo2.ergobite.com/ws/twilio/{room_name}" />'
         f'</Connect>'
         f'</Response>'
     )
@@ -63,16 +59,13 @@ async def dial_outbound(payload: DialRequest, request: Request):
     from livekit import api as lkapi
 
     room_name = f"dni-outbound-{uuid.uuid4().hex[:8]}"
-    
-    host = request.headers.get("host", "demo3.ergobite.com")
-    protocol = request.headers.get("x-forwarded-proto", "https")
 
     # Step 1: Initiate outbound call via Twilio REST API
     client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
     
     try:
         call = client.calls.create(
-            url=f"{protocol}://{host}/api/twiml/{room_name}",
+            url=f"https://demo2.ergobite.com/api/twiml/{room_name}",
             to=payload.phone_number,
             from_=os.getenv("TWILIO_PHONE_NUMBER"),
             record=True,
