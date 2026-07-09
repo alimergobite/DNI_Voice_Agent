@@ -1,7 +1,12 @@
 import asyncio
 import json
 import os
+import sys
 import time
+
+# Ensure project root is in python path to prevent ModuleNotFoundError when run by PM2
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
