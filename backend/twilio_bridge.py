@@ -70,7 +70,7 @@ async def dial_outbound(payload: DialRequest, request: Request):
             from_=os.getenv("TWILIO_PHONE_NUMBER"),
             record=True,
             machine_detection="Enable",
-            async_amd="false"
+            async_amd="true"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
