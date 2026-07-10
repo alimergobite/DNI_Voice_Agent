@@ -46,7 +46,7 @@ async def get_twilio_log():
 async def get_pm2_logs():
     try:
         import subprocess
-        result = subprocess.run(["pm2", "logs", "dni-backend", "--lines", "30", "--nostream"], capture_output=True, text=True)
+        result = subprocess.run(["pm2", "logs", "dni-agent", "--lines", "100", "--nostream"], capture_output=True, text=True)
         return {"logs": result.stdout + result.stderr}
     except Exception as e:
         return {"error": str(e)}
