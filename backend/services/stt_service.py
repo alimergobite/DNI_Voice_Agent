@@ -7,7 +7,8 @@ def get_stt_engine():
     Currently utilizes Deepgram Nova-2 for ultra-low latency.
     """
     return deepgram.STT(
-        model="nova-2-general",
+        model="nova-2-conversationalai",
         api_key=settings.DEEPGRAM_API_KEY,
-        endpointing_ms=500
+        endpointing_ms=10,
+        interim_results=True
     )
