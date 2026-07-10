@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 from google import genai
-from livekit.agents import AutoSubscribe, JobContext, JobRequest, WorkerOptions, cli
+from livekit.agents import AutoSubscribe, JobContext, JobRequest, WorkerOptions, cli, turn_detector
 from livekit.agents.voice import AgentSession, Agent
 from livekit.plugins import silero
 
@@ -101,10 +101,11 @@ async def entrypoint(ctx: JobContext):
         llm=get_llm_engine(),
         tts=get_tts_engine(),
         vad=silero.VAD.load(
-            activation_threshold=0.5,
+            activation_threshold=0.6,
             min_speech_duration=0.05,
-            min_silence_duration=0.25,
+            min_silence_duration=0.1,
         ),
+        turn_detector=turn_detector.DefaultTurnDetector(silence_duration=0.4),
     )
 
     await session.start(room=ctx.room, agent=Agent(instructions=instructions))
