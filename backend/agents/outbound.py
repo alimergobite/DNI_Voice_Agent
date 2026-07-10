@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 from google import genai
-from livekit.agents import AutoSubscribe, JobContext, JobRequest, WorkerOptions, cli, turn_detector
+from livekit.agents import AutoSubscribe, JobContext, JobRequest, WorkerOptions, cli
 from livekit.agents.voice import AgentSession, Agent
 from livekit.api import LiveKitAPI
 from livekit.plugins import silero
@@ -58,7 +58,7 @@ async def entrypoint(ctx: JobContext):
         vad=custom_vad,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
-        turn_detector=turn_detector.DefaultTurnDetector(silence_duration=0.4)
+        min_endpointing_delay=0.4
     )
 
     # Store start time and metadata for call logging
