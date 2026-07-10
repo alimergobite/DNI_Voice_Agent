@@ -224,7 +224,7 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     # We pass raw Twilio audio to LiveKit, but zero out extreme low-volume comfort noise
                     # so Silero VAD correctly detects perfect digital silence during pauses.
                     rms = audioop.rms(pcm_8k, 2)
-                    if rms < 300:
+                    if rms < 100:
                         pcm_8k = b'\x00' * len(pcm_8k)
                     
                     # Upsample 8kHz -> 16kHz (MUST KEEP STATE BETWEEN FRAMES)
