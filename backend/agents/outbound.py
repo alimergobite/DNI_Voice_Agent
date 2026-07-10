@@ -17,9 +17,9 @@ from livekit.api import LiveKitAPI
 from livekit.plugins import silero
 
 # Initialize VAD globally so it doesn't block the async event loop during job dispatch.
-# We lower activation_threshold to 0.1 so VAD stays open and relies entirely on Deepgram's endpointing.
+# We lower activation_threshold to 0.3 so VAD stays open and relies entirely on Deepgram's endpointing.
 # We set min_silence_duration to 0.25 (250ms) to satisfy the TurnDetector requirement.
-custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.25, activation_threshold=0.1)
+custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.25, activation_threshold=0.3)
 
 from backend.services.llm_service import get_llm_engine
 from backend.services.stt_service import get_stt_engine
