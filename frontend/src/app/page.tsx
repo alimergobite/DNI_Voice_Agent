@@ -321,7 +321,8 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
           date_of_birth: contact.dateOfBirth,
           emirates_id: contact.emiratesId,
           company_name: contact.companyName,
-          trade_licence: contact.tradeLicence
+          trade_licence: contact.tradeLicence,
+          tts_provider: ttsProvider
         })
       });
       const dialData = await dialRes.json();
@@ -459,7 +460,8 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
           date_of_birth: form.dateOfBirth,
           emirates_id: form.emiratesId,
           company_name: form.companyName,
-          trade_licence: form.tradeLicence
+          trade_licence: form.tradeLicence,
+          tts_provider: form.ttsProvider
         })
       });
       const dialData = await dialRes.json();

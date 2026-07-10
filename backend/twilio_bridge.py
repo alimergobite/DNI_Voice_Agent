@@ -59,6 +59,7 @@ class DialRequest(BaseModel):
     emirates_id: str = ""
     company_name: str = ""
     trade_licence: str = ""
+    tts_provider: str = "elevenlabs"
 
 @router.post("/api/dial")
 async def dial_outbound(payload: DialRequest, request: Request):
@@ -91,7 +92,7 @@ async def dial_outbound(payload: DialRequest, request: Request):
         "company_name": payload.company_name,
         "trade_licence": payload.trade_licence,
         "phone": payload.phone_number,
-        "tts_provider": "elevenlabs",
+        "tts_provider": payload.tts_provider,
         "call_sid": call.sid
     })
 

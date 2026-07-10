@@ -96,6 +96,23 @@ def _process_call_log_background(payload: CallLogPayload):
 
     # Save to SQLite DB
     db = next(get_db())
+    
+    # Fetch Twilio recording if available
+    final_recording_url = payload.recording_url
+    if not final_recording_url and payload.metadata.get("call_sid"):
+        try:
+            from twilio.rest import Client
+            import os
+            client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
+            # Fetch recordings for this call
+            recordings = client.recordings.list(call_sid=payload.metadata.get("call_sid"), limit=1)
+            if recordings:
+                # Construct the MP3 media URL (uri ends in .json by default)
+                final_recording_url = f"https://api.twilio.com{recordings[0].uri}".replace(".json", ".mp3")
+                print(f"[Call Logging API] Retrieved Twilio recording URL: {final_recording_url}")
+        except Exception as e:
+            print(f"[Call Logging API Warning] Failed to fetch Twilio recording: {e}")
+
     try:
         db_log = CallLog(
             call_id=f"temp-{int(time.time())}",
@@ -110,7 +127,7 @@ def _process_call_log_background(payload: CallLogPayload):
             rating=float(extracted.get("rating")) if str(extracted.get("rating")).replace('.','',1).isdigit() else None,
             status=extracted.get("status", "Completed"),
             transcript=payload.transcript,
-            recording_url=payload.recording_url
+            recording_url=final_recording_url
         )
         db.add(db_log)
         db.commit()
