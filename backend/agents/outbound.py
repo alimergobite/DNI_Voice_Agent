@@ -11,10 +11,13 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 from google import genai
-from livekit.agents import AutoSubscribe, JobContext, JobRequest, WorkerOptions, cli
+from livekit.agents import AutoSubscribe, JobContext, JobRequest, WorkerOptions, cli, turn_detector
 from livekit.agents.voice import AgentSession, Agent
 from livekit.api import LiveKitAPI
-# We use the built-in VAD from AgentSession to prevent missed words.
+from livekit.plugins import silero
+
+custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.25, activation_threshold=0.5)
+
 
 from backend.services.llm_service import get_llm_engine
 from backend.services.stt_service import get_stt_engine
@@ -49,6 +52,8 @@ async def entrypoint(ctx: JobContext):
     # Build the session
     session = AgentSession(
         stt=get_stt_engine(),
+        vad=custom_vad,
+        turn_detector=turn_detector.EOUModel(min_endpointing_delay=0.3),
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
         preemptive_generation=True,

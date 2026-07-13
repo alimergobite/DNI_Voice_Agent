@@ -34,8 +34,7 @@ def get_llm_engine():
     clients = [
         google.LLM(
             model="gemini-2.5-flash",
-            api_key=key,
-            thinking_config={"thinking_budget": 0}
+            api_key=key
         ) for key in _all_keys
     ]
     return FallbackAdapter(clients)
