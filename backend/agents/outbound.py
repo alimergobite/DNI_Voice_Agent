@@ -14,13 +14,8 @@ from google import genai
 from livekit.agents import AutoSubscribe, JobContext, JobRequest, WorkerOptions, cli
 from livekit.agents.voice import AgentSession, Agent
 from livekit.api import LiveKitAPI
-from livekit.plugins import silero
-
-# Initialize VAD globally so it doesn't block the async event loop during job dispatch.
-# Initialize VAD globally so it doesn't block the async event loop during job dispatch.
-# We lower activation_threshold to 0.5 so Silero properly detects short/soft words like "yes"
-# We set min_silence_duration to 0.25 (250ms) to satisfy the TurnDetector requirement.
-custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.25, activation_threshold=0.5)
+# Note: We rely on AgentSession's built-in VAD (bundled silero) which is better tuned
+# for phone audio than the deprecated livekit-plugins-silero plugin.
 
 from backend.services.llm_service import get_llm_engine
 from backend.services.stt_service import get_stt_engine
@@ -52,12 +47,14 @@ async def entrypoint(ctx: JobContext):
     instructions = get_outbound_prompt(customer_name, policy_type, metadata)
     greeting_text = f"Hi, this is Aisha from Dubai National Insurance. Am I speaking with {customer_name}?"
 
-    # Build the session
+    # Build the session. We use the built-in VAD (no explicit vad= arg) which is better
+    # tuned for phone audio. min_endpointing_delay=0.5 ensures short words like "yes"
+    # are fully committed before triggering a response turn.
     session = AgentSession(
         stt=get_stt_engine(),
-        vad=custom_vad,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
+        min_endpointing_delay=0.5,
     )
 
     # Store start time and metadata for call logging
