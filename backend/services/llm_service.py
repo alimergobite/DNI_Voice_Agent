@@ -31,7 +31,7 @@ def get_llm_engine():
     Returns a RotatingGeminiLLM that transparently switches Gemini API keys
     when a 429 rate-limit error is hit mid-conversation, preventing crashes.
     """
-    return RotatingGeminiLLM(model="gemini-2.5-flash-lite", keys=_all_keys)
+    return RotatingGeminiLLM(model="gemini-2.5-flash", keys=_all_keys)
 
 class RotatingGeminiLLM(LLM):
     """
@@ -46,12 +46,11 @@ class RotatingGeminiLLM(LLM):
         self._model = model
         self._keys = keys
         self._index = 0
+        # Pre-create all clients at startup to avoid mid-call TCP handshake latency
+        self._clients = [google.LLM(model=model, api_key=key) for key in keys]
 
     def _get_llm(self) -> google.LLM:
-        key = self._keys[self._index % len(self._keys)]
-        self._index += 1
-        logger.info(f"[LLM] Using Gemini key ending in ...{key[-8:]}")
-        return google.LLM(model=self._model, api_key=key)
+        return self._clients[self._index % len(self._keys)]
 
     def chat(self, *, chat_ctx: ChatContext, **kwargs) -> LLMStream:
         """
@@ -67,8 +66,10 @@ class RotatingGeminiLLM(LLM):
                 return llm.chat(chat_ctx=chat_ctx, **kwargs)
             except APIStatusError as e:
                 if e.status_code == 429:
+                    self._index += 1
+                    key = self._keys[self._index % len(self._keys)]
                     logger.warning(
-                        f"[LLM] Key rate-limited (429), rotating to next key... "
+                        f"[LLM] Key rate-limited (429), rotating to next key ending in ...{key[-8:]} "
                         f"(attempt {attempt + 1}/{attempts})"
                     )
                     last_error = e

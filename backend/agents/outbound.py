@@ -58,6 +58,7 @@ async def entrypoint(ctx: JobContext):
         vad=custom_vad,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
+        preemptive_generation=True,
     )
 
     # Store start time and metadata for call logging
@@ -135,8 +136,6 @@ async def entrypoint(ctx: JobContext):
             await asyncio.sleep(0.1)
 
     try:
-        # Small pause so WebRTC audio path is fully established
-        await asyncio.sleep(1.5)
         await session.say(greeting_text, allow_interruptions=False)
     except Exception as e:
         print(f"[Agent Error] {e}")
