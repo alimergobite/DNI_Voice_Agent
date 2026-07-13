@@ -1,6 +1,6 @@
 import logging
-from livekit.plugins import google
-from livekit.agents.llm import LLM, ChatContext, ChatChunk, LLMStream, FallbackAdapter
+from livekit.plugins import openai
+from livekit.agents.llm import FallbackAdapter
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -16,16 +16,19 @@ _all_keys = [
 
 def get_llm_engine():
     """
-    Returns a FallbackAdapter containing pre-created Gemini 2.5 Flash clients.
-    Includes the http_options timeout=15.0 to bypass Google's new 10s minimum deadline requirement.
+    Returns a FallbackAdapter containing Gemini 1.5 Flash clients.
+    CRITICAL FIX: We use the `openai.LLM` client pointing to Google's OpenAI-compatible endpoint
+    (`https://generativelanguage.googleapis.com/v1beta/openai/`).
+    This completely bypasses the severely buggy `google-genai` SDK which was randomly
+    failing streams with 10s deadline crashes.
     """
-    logger.info("[LLM] Initializing Gemini 2.5 Flash Pool with FallbackAdapter")
+    logger.info("[LLM] Initializing Gemini 1.5 Flash via OpenAI Compatibility Endpoint")
     
     clients = [
-        google.LLM(
+        openai.LLM(
             model="gemini-1.5-flash",
             api_key=key,
-            http_options={'timeout': 15.0}
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
         ) for key in _all_keys
     ]
     return FallbackAdapter(clients)
