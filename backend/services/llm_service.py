@@ -31,7 +31,7 @@ def get_llm_engine():
     Returns a RotatingGeminiLLM that transparently switches Gemini API keys
     when a 429 rate-limit error is hit mid-conversation, preventing crashes.
     """
-    return RotatingGeminiLLM(model="gemini-2.5-flash", keys=_all_keys)
+    return RotatingGeminiLLM(model="gemini-2.5-flash-lite", keys=_all_keys)
 
 class RotatingGeminiLLM(LLM):
     """
