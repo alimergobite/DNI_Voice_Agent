@@ -21,6 +21,7 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     
     # IMPORTANT:
     Keep your responses short, conversational, and completely human-like. Do not sound like a robot reading a script.
+    CRITICAL: NEVER echo back the customer's Date of Birth or Emirates ID. NEVER explain your internal validation or matching process out loud. Just silently validate their answer in your head, and then directly ask the next question in the script or proceed to the next step.
     
     # The Official Welcome Call Script:
     
