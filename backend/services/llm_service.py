@@ -10,10 +10,10 @@ def get_llm_engine():
     This eliminates the 1-2 second "thinking" delay of Gemini 2.5 Flash, bringing the 
     Time-To-First-Token down to < 300ms.
     """
-    logger.info("[LLM] Initializing Groq LLM (llama-3.3-70b-versatile)")
+    logger.info("[LLM] Initializing Groq LLM (llama-3.1-8b-instant)")
     
     return openai.LLM(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         api_key=settings.GROQ_API_KEY,
         base_url="https://api.groq.com/openai/v1"
     )
