@@ -23,7 +23,7 @@ def get_llm_engine():
     
     clients = [
         google.LLM(
-            model="gemini-2.5-flash",
+            model="gemini-1.5-flash",
             api_key=key,
             http_options={'timeout': 15.0}
         ) for key in _all_keys
