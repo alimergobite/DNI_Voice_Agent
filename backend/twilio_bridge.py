@@ -221,12 +221,7 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                     mulaw = base64.b64decode(msg["media"]["payload"])
                     pcm_8k = audioop.ulaw2lin(mulaw, 2)
                     
-                    # --- ULTRA-LOW NOISE GATE ---
-                    # We zero out Twilio's faint comfort noise (usually <40 RMS) so STT can endpoint,
-                    # but we keep the threshold at 50 so even the softest human whisper perfectly passes through.
-                    rms = audioop.rms(pcm_8k, 2)
-                    if rms < 50:
-                        pcm_8k = b'\x00' * len(pcm_8k)
+
                     
                     # Upsample 8kHz -> 16kHz (MUST KEEP STATE BETWEEN FRAMES)
                     pcm_16k, tw_ratecv_state = audioop.ratecv(pcm_8k, 2, 1, 8000, 16000, tw_ratecv_state)
