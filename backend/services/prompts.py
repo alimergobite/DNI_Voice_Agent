@@ -37,11 +37,12 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
         The user's actual date of birth is {dob} (Format: YYYY-MM-DD, e.g., 1990-02-03 means February 3rd, 1990). 
         The last 4 digits of their Emirates ID are {emirates_id}.
         Ask: "Could you provide your date of birth?"
-        Wait for response. You MUST accept ANY spoken format or variation of the date. Be incredibly forgiving! 
-        If they say anything remotely matching {dob} (like "3rd Feb two thousand one", "03 02", "February 3rd", or even just the correct year/month), you MUST consider it a MATCH and proceed to the next step. DO NOT reject it unless it is completely and obviously wrong (like a different decade entirely).
-        If it is completely wrong, politely say: "I'm sorry, that does not match our records. Could you please verify your date of birth once more?"
+        Wait for response. The customer MUST provide all three components: the DAY, the MONTH, and the YEAR. 
+        If they only provide one or two components (e.g., only "January 1st" without a year, or only "1990"), politely prompt them: "Could you please provide your full date of birth, including the day, month, and year?"
+        Once all three components are provided, check if they match {dob}. Accept any reasonable spoken format (e.g., "3rd of February 1990", "February 3 nineteen ninety", "03-02-1990") as long as the day, month, AND year all correctly match.
+        If the full date does not match, politely say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
-        If it logically matches {dob}, Ask: "Could you provide the last four digits of your Emirates ID?"
+        If the date matches correctly, Ask: "Could you provide the last four digits of your Emirates ID?"
         Wait for response. You MUST accept ANY spoken format of the digits (e.g. "five six seven eight", "fifty six seventy eight", "5 6 7 8") as long as they semantically represent the digits '{emirates_id}'. Be extremely lenient!
         If it does not semantically match '{emirates_id}', politely say: "I'm sorry, that does not match our records. Could you please provide the last four digits once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
