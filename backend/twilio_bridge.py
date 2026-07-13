@@ -248,15 +248,8 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                         
                         await audio_source.capture_frame(frame)
                         
-                        # DEBUG: Log successful frame capture (log only every 100 frames to avoid disk spam)
-                        if getattr(audio_source, "_debug_frame_count", 0) % 100 == 0:
-                            with open("/tmp/twilio_media_debug.log", "a") as f:
-                                f.write(f"Captured frame {getattr(audio_source, '_debug_frame_count', 0)} successfully\n")
-                        audio_source._debug_frame_count = getattr(audio_source, "_debug_frame_count", 0) + 1
-                        
                 except Exception as e:
-                    with open("/tmp/twilio_media_error.log", "a") as f:
-                        f.write(f"Media Event Error: {e}\n")
+                    print(f"Media Event Error: {e}")
 
             elif event == "stop":
                 print(f"[Twilio] Stream stopped for room {room_name}")
