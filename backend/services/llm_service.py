@@ -47,7 +47,15 @@ class RotatingGeminiLLM(LLM):
         self._keys = keys
         self._index = 0
         # Pre-create all clients at startup to avoid mid-call TCP handshake latency
-        self._clients = [google.LLM(model=model, api_key=key) for key in keys]
+        # We explicitly disable the "thinking" budget so 2.5 Flash responds instantly
+        # rather than varying its response time based on internal reasoning.
+        self._clients = [
+            google.LLM(
+                model=model, 
+                api_key=key, 
+                thinking_config={"thinking_budget": 0}
+            ) for key in keys
+        ]
 
     def _get_llm(self) -> google.LLM:
         return self._clients[self._index % len(self._keys)]
