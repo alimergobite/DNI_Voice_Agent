@@ -16,7 +16,7 @@ from livekit.agents.voice import AgentSession, Agent
 from livekit.api import LiveKitAPI
 from livekit.plugins import silero
 
-custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.25, activation_threshold=0.5)
+custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.15, activation_threshold=0.7)
 
 
 from backend.services.llm_service import get_llm_engine

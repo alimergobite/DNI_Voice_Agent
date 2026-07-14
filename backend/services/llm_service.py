@@ -21,12 +21,14 @@ def get_llm_engine():
     `google-generativeai` SDK which natively accepts the user's `AQ.` OAuth keys
     AND does not suffer from the 10s deadline streaming crash.
     """
-    logger.info("[LLM] Initializing Gemini 1.5 Flash Pool")
+    logger.info("[LLM] Initializing Groq LLM (llama-3.1-8b-instant)")
     
-    clients = [
-        google.LLM(
-            model="gemini-1.5-flash",
-            api_key=key
-        ) for key in _all_keys
-    ]
-    return FallbackAdapter(clients)
+    # We must use Groq because all 3 of the user's Gemini keys are attached to a 
+    # Google Cloud Project that has completely exhausted its daily free tier limits,
+    # resulting in silent 429 errors from Google.
+    from livekit.plugins import openai
+    return openai.LLM(
+        model="llama-3.1-8b-instant",
+        api_key=settings.GROQ_API_KEY,
+        base_url="https://api.groq.com/openai/v1"
+    )
