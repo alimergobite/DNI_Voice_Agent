@@ -11,10 +11,10 @@ def get_llm_engine():
     we must use Groq. Mixtral 8x7B provides the intelligence to follow complex KYC scripts
     while maintaining ultra-fast <2s response times.
     """
-    logger.info("[LLM] Initializing Groq LLM (meta-llama/llama-4-scout-17b-16e-instruct)")
+    logger.info("[LLM] Initializing Groq LLM (llama-3.1-8b-instant)")
     
     return openai.LLM(
-        model="meta-llama/llama-4-scout-17b-16e-instruct",
+        model="llama-3.1-8b-instant",
         api_key=settings.GROQ_API_KEY,
         base_url="https://api.groq.com/openai/v1"
     )
