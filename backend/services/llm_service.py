@@ -21,11 +21,11 @@ def get_llm_engine():
     `google-generativeai` SDK which natively accepts the user's `AQ.` OAuth keys
     AND does not suffer from the 10s deadline streaming crash.
     """
-    logger.info("[LLM] Initializing Gemini 2.5 Flash Lite Pool")
+    logger.info("[LLM] Initializing Gemini 1.5 Flash Pool")
     
     clients = [
         google.LLM(
-            model="gemini-2.5-flash-lite",
+            model="gemini-1.5-flash",
             api_key=key
         ) for key in _all_keys
     ]
