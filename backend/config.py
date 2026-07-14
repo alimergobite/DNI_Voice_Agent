@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY_3: str = os.getenv("GEMINI_API_KEY_3", "")
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
-    SARVAM_API_KEY: str = os.getenv("SARVAM_API_KEY", "")
+    SARVAM_API_KEY: str = os.getenv("SARVAM_API_KEY", "sk_p6vkq7j1_Lv59JeVCDk1TcYtogYKYC0BG")
     ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
     DEEPGRAM_API_KEY: str = os.getenv("DEEPGRAM_API_KEY", "")
     TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
