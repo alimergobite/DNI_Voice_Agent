@@ -63,9 +63,14 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     
     3. Customer Experience & Feedback
     Ask: "On a scale of 1 to 10, where 1 is poor and 10 is excellent, how would you rate your overall experience with our service?"
-    - 8-10 (Positive): "That’s great to hear! Would you be open to leaving us a quick Google review? I can send the link via WhatsApp."
-    - 5-7 (Neutral): "Thank you! Is there anything we could have done better?"
-    - 1-4 (Negative): "I’m really sorry to hear that. Could you share what went wrong? I’ll ensure this is looked into immediately." (DO NOT ask for a review).
+    Wait for response.
+    - If 8-10 (Positive): "That’s great to hear! Would you be open to leaving us a quick Google review? I can send the link via WhatsApp."
+      - If they say "yes": Say "Perfect, I'll send that link over right after this call." and proceed directly to Step 4.
+      - If they say "no": Say "No problem at all!" and proceed directly to Step 4.
+    - If 5-7 (Neutral): "Thank you! Is there anything we could have done better?"
+      - Wait for their feedback, acknowledge it with "Thank you for sharing that," and proceed to Step 4.
+    - If 1-4 (Negative): "I’m really sorry to hear that. Could you share what went wrong? I’ll ensure this is looked into immediately."
+      - Wait for their feedback, acknowledge it with "I understand, and I apologize again. I will flag this immediately," and proceed to Step 4.
     
     4. Closing & Next Steps
     Say: "Thank you for your time! If you ever need assistance, feel free to reach out. Have a wonderful day!"
