@@ -1,20 +1,28 @@
 import logging
 from livekit.plugins import openai
+from openai import AsyncAzureOpenAI
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
 def get_llm_engine():
     """
-    Returns an OpenAI-compatible LLM client configured to use Groq's LPU inference engine.
-    We must use Groq because all 3 of the user's Gemini keys are attached to a 
-    Google Cloud Project that has completely exhausted its daily free tier limits,
-    resulting in silent 429 errors from Google.
+    Returns an Azure OpenAI LLM client configured exactly to the CTO's specifications.
+    We use gpt-5.4-mini with reasoning_effort disabled for instantaneous voice response.
     """
-    logger.info("[LLM] Initializing Groq LLM (llama-3.1-8b-instant)")
+    logger.info("[LLM] Initializing Azure OpenAI (gpt-5.4-mini)")
     
+    # Create the Azure specific client
+    azure_client = AsyncAzureOpenAI(
+        api_key=settings.AZURE_OPENAI_API_KEY,
+        azure_endpoint="https://abhishekazureopenaitest.openai.azure.com",
+        api_version="2024-02-01"
+    )
+    
+    # Inject it into LiveKit's OpenAI plugin with the CTO's exact speed parameters
     return openai.LLM(
-        model="llama-3.1-8b-instant",
-        api_key=settings.GROQ_API_KEY,
-        base_url="https://api.groq.com/openai/v1"
+        model="gpt-5.4-mini",
+        client=azure_client,
+        reasoning_effort="none",
+        verbosity="low"
     )
