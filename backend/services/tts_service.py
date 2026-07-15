@@ -14,6 +14,7 @@ def get_tts_engine(provider: str = "elevenlabs"):
         # Default to ElevenLabs
         return elevenlabs.TTS(
             api_key=settings.ELEVENLABS_API_KEY, 
-            model="eleven_flash_v2_5",
-            voice_id=settings.ELEVENLABS_VOICE_ID
+            model="eleven_turbo_v2_5",
+            voice_id=settings.ELEVENLABS_VOICE_ID,
+            streaming_latency=4
         )
