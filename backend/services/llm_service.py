@@ -26,7 +26,7 @@ def get_llm_engine():
     # ==========================================
     # NEW CODE (Azure OpenAI - gpt-5.4-mini)
     # ==========================================
-    logger.info("[LLM] Initializing Azure OpenAI (gpt-5.4-mini)")
+    logger.info("[LLM] Initializing Azure OpenAI (gpt-5-nano)")
     
     # Create the Azure specific client
     azure_client = AsyncAzureOpenAI(
@@ -37,7 +37,7 @@ def get_llm_engine():
     
     # Inject it into LiveKit's OpenAI plugin with the CTO's exact speed parameters
     return openai.LLM(
-        model="gpt-5.4-mini",
+        model="gpt-5-nano",
         client=azure_client,
         reasoning_effort="none",
         verbosity="low"
