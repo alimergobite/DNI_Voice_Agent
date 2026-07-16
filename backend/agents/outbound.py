@@ -16,7 +16,7 @@ from livekit.agents.voice import AgentSession, Agent
 from livekit.api import LiveKitAPI
 from livekit.plugins import silero
 
-custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.5, activation_threshold=0.7)
+custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.25, activation_threshold=0.7)
 
 
 from backend.services.llm_service import get_llm_engine
@@ -53,10 +53,10 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession(
         stt=get_stt_engine(),
         vad=custom_vad,
-        min_endpointing_delay=0.5,
+        min_endpointing_delay=0.3,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
-        preemptive_generation=True,
+        preemptive_generation=False,
     )
 
     # Store start time and metadata for call logging

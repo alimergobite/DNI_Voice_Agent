@@ -72,12 +72,11 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     """ + (
         f"""
         [INDIVIDUAL POLICY KYC]
+        The user's actual date of birth is {dob_formats}.
         The last 4 digits of their Emirates ID are {emirates_id}.
         Ask: "Could you provide your full date of birth?"
-        Wait for response. The ONLY accepted values for the correct date of birth are EXACTLY these formats (any of them is correct):
-        - {dob_formats}
-        If what the customer said matches ANY of the above formats, it is CORRECT. Move on immediately.
-        If it does NOT match any of the above, politely say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
+        Wait for response. Compare what the customer said to the date above. You MUST accept ANY spoken format of the date as long as it semantically means the exact same day, month, and year. Be extremely lenient with how they speak it!
+        If what the customer said does NOT mean the exact same date, politely say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         If the date matches, Ask: "Could you provide the last four digits of your Emirates ID?"
         Wait for response. You MUST accept ANY spoken format of the digits (e.g. "five six seven eight", "fifty six seventy eight", "5 6 7 8") as long as they represent exactly the same four digits as '{emirates_id}'. The digits must be EXACTLY correct.
