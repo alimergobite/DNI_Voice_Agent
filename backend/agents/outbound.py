@@ -77,6 +77,31 @@ async def entrypoint(ctx: JobContext):
         room_input_options=room_input_options
     )
 
+    # ── DIAGNOSTIC LOGGING: See exactly what Deepgram transcribes and what the LLM replies ──
+    @session.on("user_input_transcribed")
+    def _on_transcript(ev):
+        print(f"[STT HEARD] \"{ev.transcript}\" (is_final={ev.is_final})")
+
+    @session.on("agent_speech_started")
+    def _on_agent_speech(ev):
+        try:
+            # Try to grab the text the agent is about to say
+            print(f"[LLM REPLY] Agent is speaking...")
+        except Exception:
+            pass
+
+    @session.on("conversation_item_added")
+    def _on_conversation_item(ev):
+        try:
+            item = ev.item
+            if hasattr(item, 'role') and hasattr(item, 'content'):
+                content = item.content
+                if isinstance(content, list):
+                    content = " ".join([str(p) for p in content if p])
+                print(f"[CONVERSATION] {item.role}: {content}")
+        except Exception as ex:
+            print(f"[CONVERSATION LOG ERROR] {ex}")
+
     @ctx.room.on("participant_disconnected")
     def on_participant_disconnected(participant):
         if participant.identity.startswith("phone_"):
