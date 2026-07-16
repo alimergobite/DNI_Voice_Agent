@@ -57,8 +57,9 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
         The user's actual date of birth is: {plain_english_dob}.
         The last 4 digits of their Emirates ID are {emirates_id}.
         Ask: "Could you provide your full date of birth?"
-        Wait for response. The customer may say the date in ANY format (e.g. "3rd of Feb", "February third", "03 02"). You MUST accept it if it semantically matches the day, month, and year of {plain_english_dob}. Be extremely lenient and use logic to understand them.
-        If what the customer said does NOT mean the exact same date, politely say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
+        Wait for response. The customer may say the date in ANY format (e.g. "3rd of Feb", "February third", "03 02"). You MUST accept it if it semantically matches the day, month, and year of {plain_english_dob}.
+        IMPORTANT SAFETY RULE: If their answer seems incomplete (e.g., they only said "Third of Feb" but haven't said the year yet), DO NOT REJECT IT. Ignore it completely until they finish speaking the full date.
+        If what they said is complete but does NOT mean the exact same date, politely say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         If the date matches, Ask: "Could you provide the last four digits of your Emirates ID?"
         Wait for response. You MUST accept ANY spoken format of the digits (e.g. "five six seven eight", "fifty six seventy eight", "5 6 7 8") as long as they represent exactly the same four digits as '{emirates_id}'. The digits must be EXACTLY correct.
