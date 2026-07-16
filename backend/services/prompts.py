@@ -26,14 +26,18 @@ def _get_dob_formats(dob_str: str) -> str:
         day_ordinal = f"{day}{'th' if 11 <= day <= 13 else {1:'st',2:'nd',3:'rd'}.get(day%10,'th')}"
 
         formats = [
-            f"{day_ordinal} of {month_full} {year}",       # 3rd of February 2002
-            f"{month_full} {day_ordinal} {year}",           # February 3rd 2002
-            f"{month_short} {day} {year}",                  # Feb 3 2002
-            f"{day} {month_full} {year}",                   # 3 February 2002
-            f"{day:02d} {dt.month:02d} {year}",             # 03 02 2002
-            f"{day:02d}-{dt.month:02d}-{year}",             # 03-02-2002
-            f"{day}/{dt.month}/{year}",                      # 3/2/2002
-            f"{dt.month}/{day}/{year}",                      # 2/3/2002
+            f"{day_ordinal} of {month_full} {year}",       # 3rd of February 1990
+            f"{day_ordinal} of {month_short} {year}",      # 3rd of Feb 1990
+            f"{month_full} {day_ordinal} {year}",           # February 3rd 1990
+            f"{month_short} {day_ordinal} {year}",          # Feb 3rd 1990
+            f"{month_full} {day} {year}",                   # February 3 1990
+            f"{month_short} {day} {year}",                  # Feb 3 1990
+            f"{day} {month_full} {year}",                   # 3 February 1990
+            f"{day} {month_short} {year}",                  # 3 Feb 1990
+            f"{day:02d} {dt.month:02d} {year}",             # 03 02 1990
+            f"{day:02d}-{dt.month:02d}-{year}",             # 03-02-1990
+            f"{day}/{dt.month}/{year}",                      # 3/2/1990
+            f"{dt.month}/{day}/{year}",                      # 2/3/1990
         ]
         return "\n        - ".join(formats)
     except Exception:
