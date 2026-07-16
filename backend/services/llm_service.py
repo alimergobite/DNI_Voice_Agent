@@ -39,6 +39,6 @@ def get_llm_engine():
     return openai.LLM(
         model="gpt-5-nano",
         client=azure_client,
-        reasoning_effort="none",
+        reasoning_effort="low",
         verbosity="low"
     )
