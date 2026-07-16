@@ -10,10 +10,41 @@ def get_inbound_prompt(customer_name: str, policy_name: str) -> str:
     4. If they have complex issues, inform them you will create a support ticket.
     """
 
+from datetime import datetime
+
+def _get_dob_formats(dob_str: str) -> str:
+    """
+    Pre-generates a list of all valid spoken formats for a given DOB (YYYY-MM-DD).
+    This offloads the conversion work from the LLM to Python.
+    """
+    try:
+        dt = datetime.strptime(dob_str, "%Y-%m-%d")
+        day = dt.day
+        month_full = dt.strftime("%B")      # e.g. February
+        month_short = dt.strftime("%b")     # e.g. Feb
+        year = dt.year
+        day_ordinal = f"{day}{'th' if 11 <= day <= 13 else {1:'st',2:'nd',3:'rd'}.get(day%10,'th')}"
+
+        formats = [
+            f"{day_ordinal} of {month_full} {year}",       # 3rd of February 2002
+            f"{month_full} {day_ordinal} {year}",           # February 3rd 2002
+            f"{month_short} {day} {year}",                  # Feb 3 2002
+            f"{day} {month_full} {year}",                   # 3 February 2002
+            f"{day:02d} {dt.month:02d} {year}",             # 03 02 2002
+            f"{day:02d}-{dt.month:02d}-{year}",             # 03-02-2002
+            f"{day}/{dt.month}/{year}",                      # 3/2/2002
+            f"{dt.month}/{day}/{year}",                      # 2/3/2002
+        ]
+        return "\n        - ".join(formats)
+    except Exception:
+        return dob_str
+
+
 def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) -> str:
     emirates_id = metadata.get("emirates_id", "NOT_PROVIDED")
     dob = metadata.get("date_of_birth", "NOT_PROVIDED")
     trade_licence = metadata.get("trade_licence", "NOT_PROVIDED")
+    dob_formats = _get_dob_formats(dob)
     
     return f"""
     You are Aisha, an AI Voice Agent representing Platinum Insurance Broker LLC (partnered with Dubai National Insurance).
@@ -37,14 +68,14 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     """ + (
         f"""
         [INDIVIDUAL POLICY KYC]
-        The user's actual date of birth on record is {dob} (stored as YYYY-MM-DD format).
         The last 4 digits of their Emirates ID are {emirates_id}.
         Ask: "Could you provide your full date of birth?"
-        Wait for response. The customer may say it in ANY spoken format — for example if the record is "2002-02-03", all of these are CORRECT: "third of February two thousand and two", "Feb 3rd 2002", "03 02 2002", "3-2-2002". 
-        Silently convert what they say into YYYY-MM-DD and check if the DAY, MONTH, and YEAR all match exactly with '{dob}'. The date must be EXACTLY correct — even one wrong digit means it does not match.
-        If the converted date does NOT exactly match '{dob}', politely say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
+        Wait for response. The ONLY accepted values for the correct date of birth are EXACTLY these formats (any of them is correct):
+        - {dob_formats}
+        If what the customer said matches ANY of the above formats, it is CORRECT. Move on immediately.
+        If it does NOT match any of the above, politely say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
-        If the date matches exactly, Ask: "Could you provide the last four digits of your Emirates ID?"
+        If the date matches, Ask: "Could you provide the last four digits of your Emirates ID?"
         Wait for response. You MUST accept ANY spoken format of the digits (e.g. "five six seven eight", "fifty six seventy eight", "5 6 7 8") as long as they represent exactly the same four digits as '{emirates_id}'. The digits must be EXACTLY correct.
         If it does not exactly match '{emirates_id}', politely say: "I'm sorry, that does not match our records. Could you please provide the last four digits once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
