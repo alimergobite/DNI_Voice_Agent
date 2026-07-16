@@ -56,7 +56,7 @@ async def entrypoint(ctx: JobContext):
         min_endpointing_delay=0.3,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
-        preemptive_generation=True,
+        preemptive_generation=False,
     )
 
     # Store start time and metadata for call logging
