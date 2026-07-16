@@ -40,5 +40,6 @@ def get_llm_engine():
         model="gpt-5-nano",
         client=azure_client,
         reasoning_effort="low",
-        verbosity="low"
+        verbosity="low",
+        temperature=0.0
     )
