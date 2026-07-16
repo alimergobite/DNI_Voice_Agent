@@ -37,9 +37,9 @@ def get_llm_engine():
     
     # Inject it into LiveKit's OpenAI plugin with the CTO's exact speed parameters
     return openai.LLM(
-        model="gpt-5-nano",
+        model="gpt-5.4-mini",
         client=azure_client,
-        reasoning_effort="low",
+        reasoning_effort="none",
         verbosity="low",
         temperature=0.0
     )
