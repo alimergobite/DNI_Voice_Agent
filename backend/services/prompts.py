@@ -12,43 +12,25 @@ def get_inbound_prompt(customer_name: str, policy_name: str) -> str:
 
 from datetime import datetime
 
-def _get_dob_formats(dob_str: str) -> str:
+def _get_plain_english_dob(dob_str: str) -> str:
     """
-    Pre-generates a list of all valid spoken formats for a given DOB (YYYY-MM-DD).
-    This offloads the conversion work from the LLM to Python.
+    Converts any database date format into a single, crystal-clear plain English date
+    for the LLM (e.g., "February 3, 1990").
     """
-    try:
-        dt = datetime.strptime(dob_str, "%Y-%m-%d")
-        day = dt.day
-        month_full = dt.strftime("%B")      # e.g. February
-        month_short = dt.strftime("%b")     # e.g. Feb
-        year = dt.year
-        day_ordinal = f"{day}{'th' if 11 <= day <= 13 else {1:'st',2:'nd',3:'rd'}.get(day%10,'th')}"
-
-        formats = [
-            f"{day_ordinal} of {month_full} {year}",       # 3rd of February 1990
-            f"{day_ordinal} of {month_short} {year}",      # 3rd of Feb 1990
-            f"{month_full} {day_ordinal} {year}",           # February 3rd 1990
-            f"{month_short} {day_ordinal} {year}",          # Feb 3rd 1990
-            f"{month_full} {day} {year}",                   # February 3 1990
-            f"{month_short} {day} {year}",                  # Feb 3 1990
-            f"{day} {month_full} {year}",                   # 3 February 1990
-            f"{day} {month_short} {year}",                  # 3 Feb 1990
-            f"{day:02d} {dt.month:02d} {year}",             # 03 02 1990
-            f"{day:02d}-{dt.month:02d}-{year}",             # 03-02-1990
-            f"{day}/{dt.month}/{year}",                      # 3/2/1990
-            f"{dt.month}/{day}/{year}",                      # 2/3/1990
-        ]
-        return "\n        - ".join(formats)
-    except Exception:
-        return dob_str
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%m/%d/%Y"):
+        try:
+            dt = datetime.strptime(dob_str, fmt)
+            return dt.strftime("%B %d, %Y")  # e.g., February 03, 1990
+        except ValueError:
+            continue
+    return dob_str
 
 
 def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) -> str:
     emirates_id = metadata.get("emirates_id", "NOT_PROVIDED")
     dob = metadata.get("date_of_birth", "NOT_PROVIDED")
     trade_licence = metadata.get("trade_licence", "NOT_PROVIDED")
-    dob_formats = _get_dob_formats(dob)
+    plain_english_dob = _get_plain_english_dob(dob)
     
     return f"""
     You are Aisha, an AI Voice Agent representing Platinum Insurance Broker LLC (partnered with Dubai National Insurance).
@@ -72,10 +54,10 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     """ + (
         f"""
         [INDIVIDUAL POLICY KYC]
-        The user's actual date of birth is {dob_formats}.
+        The user's actual date of birth is: {plain_english_dob}.
         The last 4 digits of their Emirates ID are {emirates_id}.
         Ask: "Could you provide your full date of birth?"
-        Wait for response. Compare what the customer said to the date above. You MUST accept ANY spoken format of the date as long as it semantically means the exact same day, month, and year. Be extremely lenient with how they speak it!
+        Wait for response. The customer may say the date in ANY format (e.g. "3rd of Feb", "February third", "03 02"). You MUST accept it if it semantically matches the day, month, and year of {plain_english_dob}. Be extremely lenient and use logic to understand them.
         If what the customer said does NOT mean the exact same date, politely say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
         Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         If the date matches, Ask: "Could you provide the last four digits of your Emirates ID?"
