@@ -24,22 +24,12 @@ def get_llm_engine():
     # ==========================================
 
     # ==========================================
-    # NEW CODE (Azure OpenAI - gpt-5.4-mini)
+    # GROQ LLM (Ultra-Low Latency + Smart Model)
     # ==========================================
-    logger.info("[LLM] Initializing Azure OpenAI (gpt-5-nano)")
-    
-    # Create the Azure specific client
-    azure_client = AsyncAzureOpenAI(
-        api_key=settings.AZURE_OPENAI_API_KEY,
-        azure_endpoint="https://abhishekazureopenaitest.openai.azure.com",
-        api_version="2024-02-01"
-    )
-    
-    # Inject it into LiveKit's OpenAI plugin with the CTO's exact speed parameters
+    logger.info("[LLM] Initializing Groq LLM (llama-3.3-70b-versatile)")
     return openai.LLM(
-        model="gpt-5.4-mini",
-        client=azure_client,
-        reasoning_effort="none",
-        verbosity="low",
+        model="llama-3.3-70b-versatile",
+        api_key=settings.GROQ_API_KEY,
+        base_url="https://api.groq.com/openai/v1",
         temperature=0.0
     )
