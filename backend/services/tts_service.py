@@ -8,7 +8,7 @@ def get_tts_engine(provider: str = "elevenlabs"):
     if provider == "sarvam":
         return sarvam.TTS(
             api_key=settings.SARVAM_API_KEY,
-            speaker="simran" # Using Simran by default as requested
+            speaker="ritu"
         )
     else:
         # Default to ElevenLabs
