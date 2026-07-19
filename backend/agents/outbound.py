@@ -49,19 +49,6 @@ async def entrypoint(ctx: JobContext):
     instructions = get_outbound_prompt(customer_name, policy_type, metadata)
     greeting_text = f"Hi, this is Aisha from Dubai National Insurance. Am I speaking with {customer_name}?"
 
-    from livekit.agents.llm import FunctionContext, ai_callable
-    import asyncio
-
-    class CallController(FunctionContext):
-        @ai_callable(description="Call this function immediately after you say goodbye to the customer to end the phone call.")
-        async def end_call(self):
-            print("[Agent] LLM triggered end_call(). Disconnecting room.")
-            await asyncio.sleep(2) # Give TTS time to finish playing the goodbye audio
-            asyncio.create_task(ctx.room.disconnect())
-            return "Call ended successfully."
-
-    fnc_ctx = CallController()
-
     # Build the session
     session = AgentSession(
         stt=get_stt_engine(),
@@ -70,7 +57,6 @@ async def entrypoint(ctx: JobContext):
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
         preemptive_generation=True,
-        fnc_ctx=fnc_ctx
     )
 
     # Store start time and metadata for call logging
@@ -113,6 +99,15 @@ async def entrypoint(ctx: JobContext):
                 if isinstance(content, list):
                     content = " ".join([str(p) for p in content if p])
                 print(f"[CONVERSATION] {item.role}: {content}")
+                
+                # Auto-hangup logic: If the agent says the goodbye phrase, disconnect after a short delay
+                if item.role == "assistant" and "wonderful day" in content.lower():
+                    print("[Agent] Detected goodbye phrase. Scheduling hangup.")
+                    async def delayed_hangup():
+                        await asyncio.sleep(6) # Give TTS enough time to speak the final sentence
+                        print("[Agent] Executing auto-hangup.")
+                        await ctx.room.disconnect()
+                    asyncio.create_task(delayed_hangup())
         except Exception as ex:
             print(f"[CONVERSATION LOG ERROR] {ex}")
 

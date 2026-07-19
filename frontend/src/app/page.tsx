@@ -385,14 +385,7 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
             </div>
           </div>
           {error && <p className="text-sm text-rose-500">{error}</p>}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={handleQuickCall}
-              disabled={loading}
-              className="py-3 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              <Monitor size={18} /> {loading ? "..." : "Web Call"}
-            </button>
+          <div className="grid grid-cols-1 gap-2">
             <button
               onClick={handleDialPhone}
               disabled={loading || !contact.phone}
@@ -571,10 +564,7 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
 
           {error && <p className="text-sm text-rose-500">{error}</p>}
 
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <button onClick={handleCall} disabled={loading} className="w-full py-4 bg-slate-900 hover:bg-slate-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 text-base disabled:opacity-60">
-              <Monitor size={20} /> {loading ? "..." : "Web Call"}
-            </button>
+          <div className="grid grid-cols-1 gap-3 mt-4">
             <button onClick={handleDialPhone} disabled={loading} className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 text-base disabled:opacity-60">
               <Phone size={20} /> {loading ? "..." : "Dial Phone"}
             </button>
