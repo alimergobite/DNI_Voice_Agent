@@ -116,6 +116,32 @@ async def dial_outbound(payload: DialRequest, request: Request):
 
     return {"status": "dialing", "call_sid": call.sid, "room_name": room_name}
 
+@router.get("/api/kill_room/{room_name}")
+async def kill_room_endpoint(room_name: str, call_sid: str = None):
+    print(f"[Backend] Force killing room {room_name} and Twilio call {call_sid}")
+    
+    # 1. Kill Twilio Call directly
+    if call_sid and os.getenv("TWILIO_ACCOUNT_SID"):
+        try:
+            client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
+            client.calls(call_sid).update(status="completed")
+            print(f"[Backend] Twilio call {call_sid} terminated.")
+        except Exception as e:
+            print(f"[Backend] Twilio termination warning: {e}")
+
+    # 2. Delete LiveKit Room
+    from livekit import api as lkapi
+    lk_api = lkapi.LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
+    try:
+        await lk_api.room.delete_room(lkapi.DeleteRoomRequest(room=room_name))
+        print(f"[Backend] Room {room_name} deleted.")
+    except Exception as e:
+        print(f"[Backend] Room deletion warning: {e}")
+    finally:
+        await lk_api.aclose()
+
+    return {"status": "success"}
+
 @router.websocket("/ws/twilio/{room_name}")
 async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
     await websocket.accept()

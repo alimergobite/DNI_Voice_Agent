@@ -119,23 +119,12 @@ async def entrypoint(ctx: JobContext):
                     await asyncio.sleep(4)
                     try:
                         metadata = globals().get("_last_metadata", {})
-                        call_sid = metadata.get("call_sid")
-                        if call_sid:
-                            import os
-                            from twilio.rest import Client
-                            try:
-                                client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
-                                client.calls(call_sid).update(status="completed")
-                                print(f"[Agent] Twilio call {call_sid} forcefully terminated via REST API.")
-                            except Exception as tw_err:
-                                print(f"[Agent] Twilio hangup error: {tw_err}")
-    
-                        api = LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
-                        await api.room.delete_room(livekit_api.DeleteRoomRequest(room=ctx.room.name))
-                        await api.aclose()
-                    except Exception as e:
-                        print(f"[Agent Error] Failed to delete room: {e}")
+                        call_sid = metadata.get("call_sid", "")
+                        import requests
+                        requests.get(f"http://localhost:8000/api/kill_room/{ctx.room.name}?call_sid={call_sid}", timeout=5)
                         ctx.room.disconnect()
+                    except Exception as e:
+                        print(f"[Agent Error] Failed to delegate room kill: {e}")
                 asyncio.create_task(delayed_kill())
         except Exception as e:
             print(f"[Agent Error] Failed to process agent speech: {e}")
@@ -181,27 +170,19 @@ async def entrypoint(ctx: JobContext):
                     print(f"[Agent] Failed to hand off log to backend: {e}")
 
             # Completely kill the room to forcefully drop the Twilio call and frontend modal
-            async def kill_room():
+            def kill_room():
                 try:
                     metadata = globals().get("_last_metadata", {})
-                    call_sid = metadata.get("call_sid")
-                    if call_sid:
-                        import os
-                        from twilio.rest import Client
-                        try:
-                            client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
-                            client.calls(call_sid).update(status="completed")
-                            print(f"[Agent] Twilio call {call_sid} forcefully terminated via REST API.")
-                        except Exception as tw_err:
-                            print(f"[Agent] Twilio hangup error: {tw_err}")
-
-                    api = LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
-                    await api.room.delete_room(livekit_api.DeleteRoomRequest(room=ctx.room.name))
-                    await api.aclose()
+                    call_sid = metadata.get("call_sid", "")
+                    import requests
+                    requests.get(f"http://localhost:8000/api/kill_room/{ctx.room.name}?call_sid={call_sid}", timeout=5)
                 except Exception as e:
                     print(f"[Agent Error] Kill room fallback: {e}")
+                finally:
                     ctx.room.disconnect()
-            asyncio.create_task(kill_room())
+            
+            # Run the synchronous requests.get in a background thread
+            asyncio.to_thread(kill_room)
 
     ctx.room.on(
         "disconnected",
