@@ -154,6 +154,11 @@ async def kill_room_endpoint(room_name: str, call_sid: str = None):
 
     return {"status": "success"}
 
+@router.get("/api/is_room_active/{room_name}")
+async def is_room_active_endpoint(room_name: str):
+    # If the room is still in the map, it's active. Once killed or finished, it's removed.
+    return {"active": room_name in room_to_call_sid}
+
 @router.websocket("/ws/twilio/{room_name}")
 async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
     await websocket.accept()
@@ -242,6 +247,7 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
         @room.on("disconnected")
         def on_room_disconnected(*args):
             print(f"[Twilio Bridge] LiveKit room {room_name} disconnected. Closing Twilio WebSocket to drop call.")
+            room_to_call_sid.pop(room_name, None)
             asyncio.create_task(websocket.close())
 
         # Main loop: receive Twilio WebSocket messages

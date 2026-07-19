@@ -69,7 +69,7 @@ function Avatar({ name, idx }: { name: string | null; idx: number }) {
 }
 
 // ─── Live Call Modal ──────────────────────────────────────────────────────────
-function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
+function LiveCallModal({ token, onForceKill, onCloseUI }: { token: string; onForceKill: () => void; onCloseUI: () => void }) {
   const url = process.env.NEXT_PUBLIC_LIVEKIT_URL || "ws://127.0.0.1:7880";
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
@@ -89,9 +89,9 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
           video={false}
           className="w-full flex flex-col items-center"
         >
-          <CallStatusPanel onEnd={onEnd} />
+          <CallStatusPanel onCloseUI={onCloseUI} />
           <button
-            onClick={onEnd}
+            onClick={onForceKill}
             className="mt-6 w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-2xl transition-colors"
           >
             End Call
@@ -103,7 +103,7 @@ function LiveCallModal({ token, onEnd }: { token: string; onEnd: () => void }) {
 }
 
 // ─── CallStatusPanel — single component for spectators ────────────────────────
-function CallStatusPanel({ onEnd }: { onEnd: () => void }) {
+function CallStatusPanel({ onCloseUI }: { onCloseUI: () => void }) {
   const participants = useRemoteParticipants();
   const connectionState = useConnectionState();
   const transcriptions = useTranscriptions();
@@ -113,20 +113,16 @@ function CallStatusPanel({ onEnd }: { onEnd: () => void }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const hasConnectedRef = useRef(false);
-  const wasConnectingRef = useRef(false);
 
   // Participant presence → call status
   useEffect(() => {
-    if (connectionState === ConnectionState.Connecting) {
-      wasConnectingRef.current = true;
-    }
     if (connectionState === ConnectionState.Connected) {
       hasConnectedRef.current = true;
     }
 
-    if (connectionState === ConnectionState.Disconnected && (hasConnectedRef.current || wasConnectingRef.current)) {
-      console.log("[CallStatus] Spectator disconnected or connection rejected. Room ended.");
-      onEnd();
+    if (connectionState === ConnectionState.Disconnected && hasConnectedRef.current) {
+      console.log("[CallStatus] Spectator disconnected. Room ended.");
+      onCloseUI();
       return;
     }
 
@@ -590,12 +586,17 @@ export default function Home() {
   const [selectedCall, setSelectedCall] = useState<CallLog | null>(null);
   const [quickCallContact, setQuickCallContact] = useState<QuickContact | null>(null);
 
-  const handleEndCall = () => {
+  const handleForceKill = () => {
     if (activeRoomName) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
       fetch(`${apiUrl}/api/kill_room/${activeRoomName}?call_sid=`)
         .catch(e => console.error("[Frontend] Force kill error:", e));
     }
+    setLiveToken(null);
+    setActiveRoomName(null);
+  };
+
+  const handleCloseUI = () => {
     setLiveToken(null);
     setActiveRoomName(null);
   };
@@ -639,6 +640,27 @@ export default function Home() {
     const interval = setInterval(fetchCalls, 3000); // refresh every 3 seconds
     return () => clearInterval(interval);
   }, []);
+
+  // Poll for room active status as a fallback when websocket fails
+  useEffect(() => {
+    if (!activeRoomName) return;
+    const interval = setInterval(async () => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+        const res = await fetch(`${apiUrl}/api/is_room_active/${activeRoomName}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.active === false) {
+            console.log("[Frontend] Backend reports room is dead. Closing UI.");
+            handleCloseUI();
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check room status:", err);
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [activeRoomName]);
 
   const navItems = [
     { name: "Dashboard", icon: <LayoutDashboard size={20} /> },
@@ -857,7 +879,7 @@ export default function Home() {
           }} 
         />
       )}
-      {liveToken && <LiveCallModal token={liveToken} onEnd={handleEndCall} />}
+      {liveToken && <LiveCallModal token={liveToken} onForceKill={handleForceKill} onCloseUI={handleCloseUI} />}
       {selectedCall && <CallDetailsModal call={selectedCall} onClose={() => setSelectedCall(null)} />}
     </div>
     </>
