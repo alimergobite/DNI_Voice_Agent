@@ -13,6 +13,7 @@ load_dotenv(override=True)
 from google import genai
 from livekit.agents import AutoSubscribe, JobContext, JobRequest, WorkerOptions, cli
 from livekit.agents.voice import AgentSession, Agent
+from livekit import api as livekit_api
 from livekit.api import LiveKitAPI
 from livekit.plugins import silero
 
@@ -141,11 +142,11 @@ async def entrypoint(ctx: JobContext):
                                             print(f"[Agent] Twilio hangup error: {tw_err}")
 
                                     api = LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
-                                    await api.room.delete_room(room_name=ctx.room.name)
+                                    await api.room.delete_room(livekit_api.DeleteRoomRequest(room=ctx.room.name))
                                     await api.aclose()
                                 except Exception as e:
                                     print(f"[Agent Error] Failed to delete room: {e}")
-                                    await ctx.room.disconnect()
+                                    ctx.room.disconnect()
                                 return # Break out of the infinite loop
                             break # We found the last assistant message, don't check older ones
             except Exception:
@@ -209,11 +210,11 @@ async def entrypoint(ctx: JobContext):
                             print(f"[Agent] Twilio hangup error: {tw_err}")
 
                     api = LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
-                    await api.room.delete_room(room_name=ctx.room.name)
+                    await api.room.delete_room(livekit_api.DeleteRoomRequest(room=ctx.room.name))
                     await api.aclose()
                 except Exception as e:
                     print(f"[Agent Error] Kill room fallback: {e}")
-                    await ctx.room.disconnect()
+                    ctx.room.disconnect()
             asyncio.create_task(kill_room())
 
     ctx.room.on(
