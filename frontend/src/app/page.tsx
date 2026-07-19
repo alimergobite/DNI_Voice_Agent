@@ -147,21 +147,21 @@ function CallStatusPanel({ onCloseUI }: { onCloseUI: () => void }) {
     } else if (hasAgent && !hasPhone) {
       if (phoneEverJoined) {
         setCallStatus("ended");
-        timeoutId = setTimeout(() => onEnd(), 3000);
+        timeoutId = setTimeout(() => onCloseUI(), 3000);
       } else {
         setCallStatus("ringing");
       }
     } else if (!hasAgent && !hasPhone) {
       if (phoneEverJoined) {
         setCallStatus("ended");
-        timeoutId = setTimeout(() => onEnd(), 3000);
+        timeoutId = setTimeout(() => onCloseUI(), 3000);
       }
     }
 
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [participants, phoneEverJoined, connectionState, onEnd]);
+  }, [participants, phoneEverJoined, connectionState, onCloseUI]);
 
   // Transcriptions
   useEffect(() => {
