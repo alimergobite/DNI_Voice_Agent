@@ -127,9 +127,12 @@ async def entrypoint(ctx: JobContext):
                             print("[Agent] Detected goodbye phrase in history. Hanging up.")
                             await asyncio.sleep(4) # Give TTS time to speak it
                             try:
+                                api = LiveKitAPI()
+                                await api.room.delete_room(room_name=ctx.room.name)
+                                await api.aclose()
+                            except Exception as e:
+                                print(f"[Agent Error] Failed to delete room: {e}")
                                 await ctx.room.disconnect()
-                            except:
-                                pass
                             break
             except Exception:
                 pass
@@ -138,8 +141,10 @@ async def entrypoint(ctx: JobContext):
 
     @ctx.room.on("participant_disconnected")
     def on_participant_disconnected(participant):
-        if participant.identity.startswith("phone_"):
-            print("[Agent] Phone disconnected. Initiating fast teardown.")
+        # If either the phone hangs up, OR the dashboard operator clicks "End Call"
+        identity_lower = participant.identity.lower()
+        if identity_lower.startswith("phone_") or "operator" in identity_lower or "spectator" in identity_lower:
+            print(f"[Agent] {participant.identity} disconnected. Initiating fast teardown.")
             
             # Extract transcript
             transcript = ""
@@ -174,7 +179,15 @@ async def entrypoint(ctx: JobContext):
                 except Exception as e:
                     print(f"[Agent] Failed to hand off log to backend: {e}")
 
-            asyncio.create_task(ctx.room.disconnect())
+            # Completely kill the room to forcefully drop the Twilio call and frontend modal
+            async def kill_room():
+                try:
+                    api = LiveKitAPI()
+                    await api.room.delete_room(room_name=ctx.room.name)
+                    await api.aclose()
+                except:
+                    await ctx.room.disconnect()
+            asyncio.create_task(kill_room())
 
     ctx.room.on(
         "disconnected",
