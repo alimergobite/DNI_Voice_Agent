@@ -200,6 +200,11 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
             for publication in participant.track_publications.values():
                 if publication.track:
                     start_agent_audio(publication.track)
+                    
+        @room.on("disconnected")
+        def on_room_disconnected(*args):
+            print(f"[Twilio Bridge] LiveKit room {room_name} disconnected. Closing Twilio WebSocket to drop call.")
+            asyncio.create_task(websocket.close())
 
         # Main loop: receive Twilio WebSocket messages
         tw_ratecv_state = None

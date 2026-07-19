@@ -127,6 +127,18 @@ async def entrypoint(ctx: JobContext):
                             print("[Agent] Detected goodbye phrase in history. Hanging up.")
                             await asyncio.sleep(4) # Give TTS time to speak it
                             try:
+                                metadata = globals().get("_last_metadata", {})
+                                call_sid = metadata.get("call_sid")
+                                if call_sid:
+                                    import os
+                                    from twilio.rest import Client
+                                    try:
+                                        client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
+                                        client.calls(call_sid).update(status="completed")
+                                        print(f"[Agent] Twilio call {call_sid} forcefully terminated via REST API.")
+                                    except Exception as tw_err:
+                                        print(f"[Agent] Twilio hangup error: {tw_err}")
+
                                 api = LiveKitAPI()
                                 await api.room.delete_room(room_name=ctx.room.name)
                                 await api.aclose()
@@ -182,6 +194,18 @@ async def entrypoint(ctx: JobContext):
             # Completely kill the room to forcefully drop the Twilio call and frontend modal
             async def kill_room():
                 try:
+                    metadata = globals().get("_last_metadata", {})
+                    call_sid = metadata.get("call_sid")
+                    if call_sid:
+                        import os
+                        from twilio.rest import Client
+                        try:
+                            client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
+                            client.calls(call_sid).update(status="completed")
+                            print(f"[Agent] Twilio call {call_sid} forcefully terminated via REST API.")
+                        except Exception as tw_err:
+                            print(f"[Agent] Twilio hangup error: {tw_err}")
+
                     api = LiveKitAPI()
                     await api.room.delete_room(room_name=ctx.room.name)
                     await api.aclose()
