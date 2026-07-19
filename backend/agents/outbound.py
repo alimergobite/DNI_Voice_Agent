@@ -105,7 +105,7 @@ async def entrypoint(ctx: JobContext):
                 role_str = getattr(item.role, "value", str(item.role)).lower()
                 if "assistant" in role_str:
                     text_lower = content.lower()
-                    if "wonderful day" in text_lower or "thank you for your time" in text_lower:
+                    if "wonderful day" in text_lower or "thank you for your time" in text_lower or "security reasons i cannot proceed" in text_lower:
                         print("[Agent] Detected hardcoded goodbye phrase! Hanging up in 4s.")
                         
                         async def delayed_kill():
