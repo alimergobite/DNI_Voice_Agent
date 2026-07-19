@@ -100,17 +100,41 @@ async def entrypoint(ctx: JobContext):
                     content = " ".join([str(p) for p in content if p])
                 print(f"[CONVERSATION] {item.role}: {content}")
                 
-                # Auto-hangup logic: If the agent says the goodbye phrase, disconnect after a short delay
-                role_str = getattr(item.role, "value", str(item.role)).lower()
-                if "assistant" in role_str and "wonderful day" in content.lower():
-                    print("[Agent] Detected goodbye phrase. Scheduling hangup.")
-                    async def delayed_hangup():
-                        await asyncio.sleep(6) # Give TTS enough time to speak the final sentence
-                        print("[Agent] Executing auto-hangup.")
-                        await ctx.room.disconnect()
-                    asyncio.create_task(delayed_hangup())
+                # (Auto-hangup logic moved to background task to avoid streaming timing issues)
         except Exception as ex:
             print(f"[CONVERSATION LOG ERROR] {ex}")
+
+    # Bulletproof Auto-Hangup: Poll history every second so we catch the FINAL text after streaming completes
+    async def monitor_for_hangup():
+        while True:
+            await asyncio.sleep(1)
+            try:
+                # Disconnect immediately if the room is no longer connected
+                if ctx.room.connection_state.name == "DISCONNECTED":
+                    break
+                
+                messages = session.history.messages()
+                if messages:
+                    last_msg = messages[-1]
+                    role_str = getattr(last_msg.role, "value", str(last_msg.role)).lower()
+                    if "assistant" in role_str:
+                        content = last_msg.content
+                        if isinstance(content, list):
+                            content = " ".join([str(p) for p in content if p])
+                        text_lower = content.lower()
+                        # Check for the goodbye phrase in the accumulated text
+                        if "wonderful day" in text_lower or "thank you for your time" in text_lower:
+                            print("[Agent] Detected goodbye phrase in history. Hanging up.")
+                            await asyncio.sleep(4) # Give TTS time to speak it
+                            try:
+                                await ctx.room.disconnect()
+                            except:
+                                pass
+                            break
+            except Exception:
+                pass
+
+    asyncio.create_task(monitor_for_hangup())
 
     @ctx.room.on("participant_disconnected")
     def on_participant_disconnected(participant):
