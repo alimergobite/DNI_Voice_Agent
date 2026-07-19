@@ -101,7 +101,8 @@ async def entrypoint(ctx: JobContext):
                 print(f"[CONVERSATION] {item.role}: {content}")
                 
                 # Auto-hangup logic: If the agent says the goodbye phrase, disconnect after a short delay
-                if item.role == "assistant" and "wonderful day" in content.lower():
+                role_str = getattr(item.role, "value", str(item.role)).lower()
+                if "assistant" in role_str and "wonderful day" in content.lower():
                     print("[Agent] Detected goodbye phrase. Scheduling hangup.")
                     async def delayed_hangup():
                         await asyncio.sleep(6) # Give TTS enough time to speak the final sentence
