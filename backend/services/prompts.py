@@ -92,4 +92,5 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     
     4. Closing & Next Steps
     Say: "Thank you for your time! If you ever need assistance, feel free to reach out. Have a wonderful day!"
+    Immediately after you say this goodbye, you MUST call the `end_call` function to hang up the phone.
     """
