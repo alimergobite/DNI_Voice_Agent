@@ -13,6 +13,10 @@ from .config import settings
 
 router = APIRouter()
 
+# Global map to store room_name -> call_sid to ensure we can force kill the call
+# even if the frontend doesn't provide the call_sid.
+room_to_call_sid = {}
+
 @router.post("/api/twiml/{room_name}")
 async def twiml_callback(room_name: str, request: Request):
     """Twilio hits this URL ONLY when the call is answered (or human detected)."""
@@ -81,6 +85,7 @@ async def dial_outbound(payload: DialRequest, request: Request):
             from_=os.getenv("TWILIO_PHONE_NUMBER"),
             record=True
         )
+        room_to_call_sid[room_name] = call.sid
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -118,6 +123,10 @@ async def dial_outbound(payload: DialRequest, request: Request):
 
 @router.get("/api/kill_room/{room_name}")
 async def kill_room_endpoint(room_name: str, call_sid: str = None):
+    # Fallback to in-memory map if frontend didn't provide call_sid
+    if not call_sid:
+        call_sid = room_to_call_sid.get(room_name)
+        
     print(f"[Backend] Force killing room {room_name} and Twilio call {call_sid}")
     
     # 1. Kill Twilio Call directly
@@ -128,6 +137,9 @@ async def kill_room_endpoint(room_name: str, call_sid: str = None):
             print(f"[Backend] Twilio call {call_sid} terminated.")
         except Exception as e:
             print(f"[Backend] Twilio termination warning: {e}")
+            
+    # Cleanup memory
+    room_to_call_sid.pop(room_name, None)
 
     # 2. Delete LiveKit Room
     from livekit import api as lkapi
