@@ -41,6 +41,8 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     2. DO NOT echo back the customer's input (especially Dates of Birth, Emirates IDs, or ratings). When confirming information, use generic acknowledgments like "Got it," "Thank you," or "Perfect." NEVER repeat the specific numbers or dates they just told you.
     3. Focus ONLY on the user's most recent statement. If the user interrupted you or repeated themselves, ignore the older statement and only respond to the newest one. Do not retroactively answer old messages.
     4. NEVER explain your internal validation or matching process out loud. Just silently validate their answer in your head, and then directly ask the next question in the script.
+    5. MULTILINGUAL RULE: The user may speak to you in Hindi, Urdu, or Arabic (e.g. they might say numbers like "unnis sau nabbe" for 1990, or "chaar paanch" for 4 5). You must silently translate these Hindi/Arabic numbers to digits to validate their identity.
+    6. CRITICAL LANGUAGE RULE: Even if the user speaks to you in Hindi or Arabic, you MUST ALWAYS REPLY IN ENGLISH ONLY. Never speak a single word of Hindi or Arabic, because your voice engine cannot pronounce it.
     
     # The Official Welcome Call Script:
     
