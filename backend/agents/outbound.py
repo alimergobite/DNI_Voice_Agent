@@ -101,33 +101,27 @@ async def entrypoint(ctx: JobContext):
                     content = " ".join([str(p) for p in content if p])
                 print(f"[CONVERSATION] {item.role}: {content}")
                 
-                # (Auto-hangup logic moved to background task to avoid streaming timing issues)
+                # Auto-hangup logic based on AI final message
+                role_str = getattr(item.role, "value", str(item.role)).lower()
+                if "assistant" in role_str:
+                    text_lower = content.lower()
+                    if "wonderful day" in text_lower or "thank you for your time" in text_lower:
+                        print("[Agent] Detected hardcoded goodbye phrase! Hanging up in 4s.")
+                        
+                        async def delayed_kill():
+                            await asyncio.sleep(4)
+                            try:
+                                metadata = globals().get("_last_metadata", {})
+                                call_sid = metadata.get("call_sid", "")
+                                import requests
+                                await asyncio.to_thread(requests.get, f"http://localhost:8000/api/kill_room/{ctx.room.name}?call_sid={call_sid}", timeout=5)
+                                ctx.room.disconnect()
+                            except Exception as e:
+                                print(f"[Agent Error] Failed to delegate room kill: {e}")
+                        asyncio.create_task(delayed_kill())
+
         except Exception as ex:
             print(f"[CONVERSATION LOG ERROR] {ex}")
-
-    @session.on("agent_speech_committed")
-    def on_agent_speech_committed(msg):
-        try:
-            content = msg.content
-            if isinstance(content, list):
-                content = " ".join([str(p) for p in content if p])
-            text_lower = content.lower()
-            if "wonderful day" in text_lower or "thank you for your time" in text_lower:
-                print("[Agent] Detected hardcoded goodbye phrase! Hanging up in 4s.")
-                
-                async def delayed_kill():
-                    await asyncio.sleep(4)
-                    try:
-                        metadata = globals().get("_last_metadata", {})
-                        call_sid = metadata.get("call_sid", "")
-                        import requests
-                        requests.get(f"http://localhost:8000/api/kill_room/{ctx.room.name}?call_sid={call_sid}", timeout=5)
-                        ctx.room.disconnect()
-                    except Exception as e:
-                        print(f"[Agent Error] Failed to delegate room kill: {e}")
-                asyncio.create_task(delayed_kill())
-        except Exception as e:
-            print(f"[Agent Error] Failed to process agent speech: {e}")
 
     @ctx.room.on("participant_disconnected")
     def on_participant_disconnected(participant):
@@ -170,19 +164,19 @@ async def entrypoint(ctx: JobContext):
                     print(f"[Agent] Failed to hand off log to backend: {e}")
 
             # Completely kill the room to forcefully drop the Twilio call and frontend modal
-            def kill_room():
+            async def run_kill_room():
                 try:
                     metadata = globals().get("_last_metadata", {})
                     call_sid = metadata.get("call_sid", "")
                     import requests
-                    requests.get(f"http://localhost:8000/api/kill_room/{ctx.room.name}?call_sid={call_sid}", timeout=5)
+                    await asyncio.to_thread(requests.get, f"http://localhost:8000/api/kill_room/{ctx.room.name}?call_sid={call_sid}", timeout=5)
                 except Exception as e:
                     print(f"[Agent Error] Kill room fallback: {e}")
                 finally:
                     ctx.room.disconnect()
             
-            # Run the synchronous requests.get in a background thread
-            asyncio.to_thread(kill_room)
+            # Properly launch the async task
+            asyncio.create_task(run_kill_room())
 
     ctx.room.on(
         "disconnected",
