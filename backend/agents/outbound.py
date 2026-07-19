@@ -115,37 +115,39 @@ async def entrypoint(ctx: JobContext):
                 
                 messages = session.history.messages()
                 if messages:
-                    last_msg = messages[-1]
-                    role_str = getattr(last_msg.role, "value", str(last_msg.role)).lower()
-                    if "assistant" in role_str:
-                        content = last_msg.content
-                        if isinstance(content, list):
-                            content = " ".join([str(p) for p in content if p])
-                        text_lower = content.lower()
-                        # Check for the goodbye phrase in the accumulated text
-                        if "wonderful day" in text_lower or "thank you for your time" in text_lower:
-                            print("[Agent] Detected goodbye phrase in history. Hanging up.")
-                            await asyncio.sleep(4) # Give TTS time to speak it
-                            try:
-                                metadata = globals().get("_last_metadata", {})
-                                call_sid = metadata.get("call_sid")
-                                if call_sid:
-                                    import os
-                                    from twilio.rest import Client
-                                    try:
-                                        client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
-                                        client.calls(call_sid).update(status="completed")
-                                        print(f"[Agent] Twilio call {call_sid} forcefully terminated via REST API.")
-                                    except Exception as tw_err:
-                                        print(f"[Agent] Twilio hangup error: {tw_err}")
+                    # Scan backwards to find the actual last thing the AI said (bypassing any empty user noise)
+                    for msg in reversed(messages):
+                        role_str = getattr(msg.role, "value", str(msg.role)).lower()
+                        if "assistant" in role_str:
+                            content = msg.content
+                            if isinstance(content, list):
+                                content = " ".join([str(p) for p in content if p])
+                            text_lower = content.lower()
+                            # Check for the goodbye phrase in the accumulated text
+                            if "wonderful day" in text_lower or "thank you for your time" in text_lower:
+                                print("[Agent] Detected goodbye phrase in history. Hanging up.")
+                                await asyncio.sleep(4) # Give TTS time to speak it
+                                try:
+                                    metadata = globals().get("_last_metadata", {})
+                                    call_sid = metadata.get("call_sid")
+                                    if call_sid:
+                                        import os
+                                        from twilio.rest import Client
+                                        try:
+                                            client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
+                                            client.calls(call_sid).update(status="completed")
+                                            print(f"[Agent] Twilio call {call_sid} forcefully terminated via REST API.")
+                                        except Exception as tw_err:
+                                            print(f"[Agent] Twilio hangup error: {tw_err}")
 
-                                api = LiveKitAPI()
-                                await api.room.delete_room(room_name=ctx.room.name)
-                                await api.aclose()
-                            except Exception as e:
-                                print(f"[Agent Error] Failed to delete room: {e}")
-                                await ctx.room.disconnect()
-                            break
+                                    api = LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
+                                    await api.room.delete_room(room_name=ctx.room.name)
+                                    await api.aclose()
+                                except Exception as e:
+                                    print(f"[Agent Error] Failed to delete room: {e}")
+                                    await ctx.room.disconnect()
+                                return # Break out of the infinite loop
+                            break # We found the last assistant message, don't check older ones
             except Exception:
                 pass
 
@@ -206,10 +208,11 @@ async def entrypoint(ctx: JobContext):
                         except Exception as tw_err:
                             print(f"[Agent] Twilio hangup error: {tw_err}")
 
-                    api = LiveKitAPI()
+                    api = LiveKitAPI(settings.LIVEKIT_URL, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
                     await api.room.delete_room(room_name=ctx.room.name)
                     await api.aclose()
-                except:
+                except Exception as e:
+                    print(f"[Agent Error] Kill room fallback: {e}")
                     await ctx.room.disconnect()
             asyncio.create_task(kill_room())
 
