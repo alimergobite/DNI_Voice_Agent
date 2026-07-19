@@ -113,15 +113,19 @@ function CallStatusPanel({ onEnd }: { onEnd: () => void }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const hasConnectedRef = useRef(false);
+  const wasConnectingRef = useRef(false);
 
   // Participant presence → call status
   useEffect(() => {
+    if (connectionState === ConnectionState.Connecting) {
+      wasConnectingRef.current = true;
+    }
     if (connectionState === ConnectionState.Connected) {
       hasConnectedRef.current = true;
     }
 
-    if (connectionState === ConnectionState.Disconnected && hasConnectedRef.current) {
-      console.log("[CallStatus] Spectator disconnected. Room ended.");
+    if (connectionState === ConnectionState.Disconnected && (hasConnectedRef.current || wasConnectingRef.current)) {
+      console.log("[CallStatus] Spectator disconnected or connection rejected. Room ended.");
       onEnd();
       return;
     }
@@ -272,7 +276,7 @@ const DEMO_CONTACT: QuickContact = {
 function QuickCallModal({ contact, onClose, onCallStart }: {
   contact: QuickContact;
   onClose: () => void;
-  onCallStart: (token: string) => void;
+  onCallStart: (token: string, roomName: string) => void;
 }) {
   const [ttsProvider, setTtsProvider] = useState("elevenlabs");
   const [loading, setLoading] = useState(false);
@@ -298,7 +302,7 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
         body: JSON.stringify({ roomName, participantName: "Operator", metadata }),
       });
       const data = await res.json();
-      if (data.token) { onClose(); onCallStart(data.token); }
+      if (data.token) { onClose(); onCallStart(data.token, roomName); }
       else { setError(data.error || "Failed to start call."); }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
@@ -337,7 +341,7 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
         body: JSON.stringify({ roomName, participantName: "Dashboard Spectator", metadata: {} }),
       });
       const tokenData = await tokenRes.json();
-      if (tokenData.token) { onClose(); onCallStart(tokenData.token); }
+      if (tokenData.token) { onClose(); onCallStart(tokenData.token, roomName); }
       else { setError(tokenData.error || "Failed to start room."); }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
@@ -401,7 +405,7 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
 }
 
 // ─── New Call Form Modal ──────────────────────────────────────────────────────
-function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallStart: (token: string) => void }) {
+function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallStart: (token: string, roomName: string) => void }) {
   const [form, setForm] = useState<FormData>({ policyType: "individual", phone: "", contactName: "", dateOfBirth: "", emiratesId: "", companyName: "", tradeLicence: "", ttsProvider: "elevenlabs", elevenlabsApiKey: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -429,7 +433,7 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
         body: JSON.stringify({ roomName, participantName: "Operator", metadata }),
       });
       const data = await res.json();
-      if (data.token) { onClose(); onCallStart(data.token); }
+      if (data.token) { onClose(); onCallStart(data.token, roomName); }
       else { setError(data.error || "Failed to start call."); }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
@@ -469,7 +473,7 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
         body: JSON.stringify({ roomName, participantName: "Dashboard Spectator", metadata: {} }),
       });
       const tokenData = await tokenRes.json();
-      if (tokenData.token) { onClose(); onCallStart(tokenData.token); }
+      if (tokenData.token) { onClose(); onCallStart(tokenData.token, roomName); }
       else { setError(tokenData.error || "Failed to start room."); }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
@@ -580,10 +584,21 @@ export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showNewCall, setShowNewCall] = useState(false);
   const [liveToken, setLiveToken] = useState<string | null>(null);
+  const [activeRoomName, setActiveRoomName] = useState<string | null>(null);
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [activeNav, setActiveNav] = useState("Dashboard");
   const [selectedCall, setSelectedCall] = useState<CallLog | null>(null);
   const [quickCallContact, setQuickCallContact] = useState<QuickContact | null>(null);
+
+  const handleEndCall = () => {
+    if (activeRoomName) {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      fetch(`${apiUrl}/api/kill_room/${activeRoomName}?call_sid=`)
+        .catch(e => console.error("[Frontend] Force kill error:", e));
+    }
+    setLiveToken(null);
+    setActiveRoomName(null);
+  };
 
   const fetchCalls = async () => {
     try {
@@ -654,7 +669,10 @@ export default function Home() {
       <QuickCallModal
         contact={quickCallContact}
         onClose={() => setQuickCallContact(null)}
-        onCallStart={(token) => setLiveToken(token)}
+        onCallStart={(token, roomName) => {
+          setLiveToken(token);
+          setActiveRoomName(roomName);
+        }}
       />
     )}
     <div className="min-h-screen bg-[#F4F5F7] font-sans flex">
@@ -831,9 +849,15 @@ export default function Home() {
 
       {/* Modals */}
       {showNewCall && (
-        <NewCallModal onClose={() => setShowNewCall(false)} onCallStart={(token) => { setLiveToken(token); }} />
+        <NewCallModal 
+          onClose={() => setShowNewCall(false)} 
+          onCallStart={(token, roomName) => { 
+            setLiveToken(token); 
+            setActiveRoomName(roomName); 
+          }} 
+        />
       )}
-      {liveToken && <LiveCallModal token={liveToken} onEnd={() => setLiveToken(null)} />}
+      {liveToken && <LiveCallModal token={liveToken} onEnd={handleEndCall} />}
       {selectedCall && <CallDetailsModal call={selectedCall} onClose={() => setSelectedCall(null)} />}
     </div>
     </>
