@@ -69,9 +69,12 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
         The last 4 digits of their Emirates ID are {emirates_id}.
         Ask: "Could you provide your full date of birth?"
         Wait for response. 
-        - If the date provided matches the day, month, and year of {plain_english_dob}, say: "Got it, thank you." and Ask: "Could you provide the last four digits of your Emirates ID?"
-        - If the user provides a date (day, month, or year) that does NOT match {plain_english_dob}, you MUST REJECT IT immediately. Say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
-        Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
+        
+        MATCHING RULES FOR DATE OF BIRTH ({plain_english_dob}):
+        - Spoken/STT variants for {plain_english_dob} (such as "3rd Feb 1990", "3 February 1990", "February 3 1990", "Since Feb 1990", "Since February 1990", "In Feb 1990", "In February 1990", "teen Feb 1990") are ALL VALID MATCHES!
+        - If the date provided matches {plain_english_dob} (or any of the valid phonetic variants above), say: "Got it, thank you." and Ask: "Could you provide the last four digits of your Emirates ID?"
+        - If the user provides a completely different day, month, or year (e.g. 15th Feb, 10th March, 1995), say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
+        Wait for response. If wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         
         If asked for Emirates ID:
         - If the 4 digits match '{emirates_id}', say: "Thank you for sharing this information." and proceed to Step 3.
