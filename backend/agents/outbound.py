@@ -54,7 +54,7 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession(
         stt=get_stt_engine(),
         vad=custom_vad,
-        min_endpointing_delay=0.3,
+        min_endpointing_delay=0.15,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
         preemptive_generation=True,
