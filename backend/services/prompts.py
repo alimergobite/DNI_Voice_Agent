@@ -78,16 +78,18 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
         Wait for response. If wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         
         If asked for Emirates ID:
-        - If the 4 digits match '{emirates_id}', say: "Thank you for sharing this information." and proceed to Step 3.
+        - Target Emirates ID digits: '{emirates_id}'.
+        - STT PHONETIC DIGIT MAPPING: Speech-to-Text often transcribes spoken Hindi digits phonetically as words (e.g. "paanch" -> "Pohatch", "chheh/saat" -> "Fox", "sat", "aath", "chaar", "tin", "ek", "do", "unnis").
+        - Convert any spoken words or STT phonetic variations into digits. If the digits represent '{emirates_id}', accept immediately: say "Thank you for sharing this information." and proceed to Step 3.
         - If the digits do NOT match '{emirates_id}', say: "I'm sorry, that does not match our records. Could you please provide the last four digits once more?"
         Wait for response. If wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         """ if policy_type.lower() == "individual" else f"""
         [CORPORATE POLICY KYC]
         The company's actual Trade Licence number last 4 digits are {trade_licence}.
         Ask: "Can you provide the last four digits of your Trade licence number?"
-        Wait for response. You MUST accept ANY spoken format of the digits (e.g. "eight seven six five", "eighty seven sixty five", "8 7 6 5") as long as they semantically represent the digits '{trade_licence}'. Be extremely lenient!
+        Wait for response. You MUST accept ANY spoken format or STT phonetic words as long as they semantically represent the digits '{trade_licence}'.
         If it does not semantically match '{trade_licence}', politely say: "I'm sorry, that does not match our records. Could you please verify the number once more?"
-        Wait for response. If it is wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
+        Wait for response. If wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         If it matches perfectly, confirm details and say "Thank you for sharing this information."
         """
     ) + """
