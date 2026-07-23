@@ -121,7 +121,7 @@ async def entrypoint(ctx: JobContext):
                                 except Exception:
                                     try: urllib.request.urlopen(url5, timeout=5)
                                     except Exception: pass
-                                ctx.room.disconnect()
+                                await ctx.room.disconnect()
                             except Exception as e:
                                 print(f"[Agent Error] Failed to delegate room kill: {e}")
                         asyncio.create_task(delayed_kill())
@@ -194,7 +194,7 @@ async def entrypoint(ctx: JobContext):
                 except Exception as e:
                     print(f"[Agent Error] Kill room fallback: {e}")
                 finally:
-                    ctx.room.disconnect()
+                    await ctx.room.disconnect()
             
             # Properly launch the async task
             asyncio.create_task(run_kill_room())
