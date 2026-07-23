@@ -165,12 +165,15 @@ async def entrypoint(ctx: JobContext):
                 
                 try:
                     data = json.dumps(payload).encode()
-                    req8 = urllib.request.Request("http://localhost:8000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
                     req5 = urllib.request.Request("http://localhost:5000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
+                    req8 = urllib.request.Request("http://localhost:8000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
                     try:
-                        urllib.request.urlopen(req8, timeout=2)
+                        urllib.request.urlopen(req5, timeout=3)
                     except Exception:
-                        urllib.request.urlopen(req5, timeout=2)
+                        try:
+                            urllib.request.urlopen(req8, timeout=3)
+                        except Exception:
+                            pass
                 except Exception as e:
                     print(f"[Agent] Failed to hand off log to backend: {e}")
 
@@ -180,12 +183,12 @@ async def entrypoint(ctx: JobContext):
                     metadata = globals().get("_last_metadata", {})
                     call_sid = metadata.get("call_sid", "")
                     import urllib.request
-                    url8 = f"http://localhost:8000/api/kill_room/{ctx.room.name}?call_sid={call_sid}"
                     url5 = f"http://localhost:5000/api/kill_room/{ctx.room.name}?call_sid={call_sid}"
+                    url8 = f"http://localhost:8000/api/kill_room/{ctx.room.name}?call_sid={call_sid}"
                     def make_req():
-                        try: urllib.request.urlopen(url8, timeout=5)
+                        try: urllib.request.urlopen(url5, timeout=5)
                         except Exception:
-                            try: urllib.request.urlopen(url5, timeout=5)
+                            try: urllib.request.urlopen(url8, timeout=5)
                             except Exception: pass
                     await asyncio.to_thread(make_req)
                 except Exception as e:
