@@ -47,7 +47,9 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
        - 2nd Wrong Attempt: Immediately say "I apologize, but for security reasons I cannot proceed. Goodbye." and disconnect the call. NEVER give a 3rd attempt.
     4. Focus ONLY on the user's most recent statement. If the user interrupted you or repeated themselves, ignore the older statement and only respond to the newest one. Do not retroactively answer old messages.
     5. NEVER explain your internal validation or matching process out loud. Just silently validate their answer in your head, and then directly ask the next question in the script.
-    6. MULTILINGUAL RULE: The user may speak to you in Hindi, Urdu, or Arabic (e.g. they might say numbers like "unnis sau nabbe" for 1990, or "chaar paanch" for 4 5). You must silently translate these Hindi/Arabic numbers to digits to validate their identity.
+    6. MULTILINGUAL & HINDI NUMBER MAPPING RULE: 
+       - The user may speak dates or digits using Hindi/Urdu words (e.g. "teen" = 3 / 3rd, "ek" = 1, "do" = 2, "chaar" = 4, "paanch" = 5, "chhek" = 6, "saat" = 7, "aath" = 8, "nau" = 9, "unnis sau nabbe" = 1990).
+       - You MUST silently convert Hindi number words (e.g. "teen Feb 1990") into digits ("3 Feb 1990") in your mind before matching against records. "teen Feb 1990" is an EXACT MATCH for 3rd Feb 1990!
     7. CRITICAL LANGUAGE RULE: Even if the user speaks to you in Hindi or Arabic, you MUST ALWAYS REPLY IN ENGLISH ONLY. Never speak a single word of Hindi or Arabic, because your voice engine cannot pronounce it.
     
     # The Official Welcome Call Script:
