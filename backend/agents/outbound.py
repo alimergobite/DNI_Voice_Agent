@@ -110,16 +110,17 @@ async def entrypoint(ctx: JobContext):
                         
                         async def delayed_kill():
                             await asyncio.sleep(4)
+                            save_transcript_to_db()
                             try:
                                 metadata = globals().get("_last_metadata", {})
                                 call_sid = metadata.get("call_sid", "")
                                 import urllib.request
-                                url8 = f"http://localhost:8000/api/kill_room/{ctx.room.name}?call_sid={call_sid}"
                                 url5 = f"http://localhost:5000/api/kill_room/{ctx.room.name}?call_sid={call_sid}"
+                                url8 = f"http://localhost:8000/api/kill_room/{ctx.room.name}?call_sid={call_sid}"
                                 try:
-                                    urllib.request.urlopen(url8, timeout=5)
+                                    urllib.request.urlopen(url5, timeout=5)
                                 except Exception:
-                                    try: urllib.request.urlopen(url5, timeout=5)
+                                    try: urllib.request.urlopen(url8, timeout=5)
                                     except Exception: pass
                                 await ctx.room.disconnect()
                             except Exception as e:
@@ -135,47 +136,7 @@ async def entrypoint(ctx: JobContext):
         identity_lower = participant.identity.lower()
         if identity_lower.startswith("phone_") or "operator" in identity_lower or "spectator" in identity_lower:
             print(f"[Agent] {participant.identity} disconnected. Initiating fast teardown.")
-            
-            # Extract transcript
-            transcript = ""
-            try:
-                messages = session.history.messages()
-                for msg in messages:
-                    if msg.role in ["user", "assistant"]:
-                        text_content = msg.content
-                        if isinstance(text_content, list):
-                            text_content = " ".join([p for p in text_content if isinstance(p, str)])
-                        transcript += f"{msg.role.upper()}: {text_content}\n"
-            except:
-                pass
-
-            if transcript.strip():
-                # Send to FastAPI backend
-                import urllib.request, json
-                metadata = globals().get("_last_metadata", {})
-                duration = int(time.time() - getattr(session, 'start_time', time.time() - 120))
-                payload = {
-                    "customer_name": customer_name,
-                    "policy_type": policy_type,
-                    "transcript": transcript,
-                    "metadata": metadata,
-                    "duration": duration,
-                    "recording_url": getattr(session, 'recording_url', None)
-                }
-                
-                try:
-                    data = json.dumps(payload).encode()
-                    req5 = urllib.request.Request("http://localhost:5000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
-                    req8 = urllib.request.Request("http://localhost:8000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
-                    try:
-                        urllib.request.urlopen(req5, timeout=3)
-                    except Exception:
-                        try:
-                            urllib.request.urlopen(req8, timeout=3)
-                        except Exception:
-                            pass
-                except Exception as e:
-                    print(f"[Agent] Failed to hand off log to backend: {e}")
+            save_transcript_to_db()
 
             # Completely kill the room to forcefully drop the Twilio call and frontend modal
             async def run_kill_room():
@@ -201,7 +162,7 @@ async def entrypoint(ctx: JobContext):
 
     ctx.room.on(
         "disconnected",
-        lambda *args: print("[Agent] Room disconnected.")
+        lambda *args: (save_transcript_to_db(), print("[Agent] Room disconnected."))
     )
 
     # Wait specifically for the Twilio Bridge participant (phone_) to join before greeting
