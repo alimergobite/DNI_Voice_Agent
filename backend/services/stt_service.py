@@ -13,9 +13,10 @@ def get_stt_engine(provider: str = "deepgram"):
             api_key=settings.SARVAM_API_KEY
         )
     else:
-        # Default to Deepgram Nova-2
+        # Default to Deepgram Nova-2 (Indian English & Hinglish model)
         return deepgram.STT(
             model="nova-2-general",
+            language="en-IN",
             api_key=settings.DEEPGRAM_API_KEY,
             smart_format=True
         )
