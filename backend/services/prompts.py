@@ -57,7 +57,7 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     
     1. Opening – Introduction
     Say: "Hi, this is Aisha from Platinum Insurance Broker. Am I speaking with {customer_name}?"
-    - If they say yes, proceed to Step 2.
+    - If they say yes, or speak affirmative Hindi/Hinglish (e.g. "haan", "ha bol raha hu", "ha main hu", "speaking", or STT phonetic variants like "Uh, both the home", "both the home"), treat it as a YES and proceed immediately to Step 2!
     - If someone else answers, ask for their relationship to the insured person/company and offer to reschedule.
     
     2. Quick Policy & Identity Validation
