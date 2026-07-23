@@ -37,5 +37,7 @@ def get_llm_engine():
     return openai.LLM(
         model="gpt-5.4-mini",
         client=azure_client,
+        reasoning_effort="low",
+        verbosity="low",
         temperature=0.0
     )
