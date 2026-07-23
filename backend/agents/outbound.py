@@ -65,6 +65,52 @@ async def entrypoint(ctx: JobContext):
     global _last_metadata
     _last_metadata = metadata
 
+    # Helper to save transcript log reliably in ALL call teardown scenarios
+    _log_saved = False
+    def save_transcript_to_db():
+        nonlocal _log_saved
+        if _log_saved:
+            return
+        _log_saved = True
+        
+        transcript = ""
+        try:
+            messages = session.history.messages()
+            for msg in messages:
+                if msg.role in ["user", "assistant"]:
+                    text_content = msg.content
+                    if isinstance(text_content, list):
+                        text_content = " ".join([p for p in text_content if isinstance(p, str)])
+                    transcript += f"{msg.role.upper()}: {text_content}\n"
+        except Exception:
+            pass
+
+        if transcript.strip():
+            import urllib.request, json
+            metadata = globals().get("_last_metadata", {})
+            duration = int(time.time() - getattr(session, 'start_time', time.time() - 120))
+            payload = {
+                "customer_name": customer_name,
+                "policy_type": policy_type,
+                "transcript": transcript,
+                "metadata": metadata,
+                "duration": duration,
+                "recording_url": getattr(session, 'recording_url', None)
+            }
+            try:
+                data = json.dumps(payload).encode()
+                req5 = urllib.request.Request("http://localhost:5000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
+                req8 = urllib.request.Request("http://localhost:8000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
+                try:
+                    urllib.request.urlopen(req5, timeout=3)
+                except Exception:
+                    try:
+                        urllib.request.urlopen(req8, timeout=3)
+                    except Exception:
+                        pass
+            except Exception as e:
+                print(f"[Agent] Failed to hand off log to backend: {e}")
+
     # Connect and subscribe ONLY to audio tracks
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
