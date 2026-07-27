@@ -1,6 +1,6 @@
 import logging
 from livekit.plugins import openai
-from openai import AsyncAzureOpenAI
+from openai import AsyncOpenAI
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
@@ -10,34 +10,40 @@ def get_llm_engine():
     Returns the configured LLM Engine for the agent.
     """
     # ==========================================
-    # OLD CODE (Google Gemini / Flash Lite & Groq)
+    # PREVIOUS CODE (Azure OpenAI gpt-5.4-mini)
     # ==========================================
-    # from livekit.plugins import google
-    # from livekit.agents.llm import FallbackAdapter
-    #
-    # logger.info("[LLM] Initializing Groq LLM (llama-3.1-8b-instant)")
+    # from openai import AsyncAzureOpenAI
+    # logger.info("[LLM] Initializing Azure OpenAI (gpt-5.4-mini)")
+    # azure_client = AsyncAzureOpenAI(
+    #     api_key=settings.AZURE_OPENAI_API_KEY,
+    #     azure_endpoint="https://abhishekazureopenaitest.openai.azure.com",
+    #     api_version="2024-02-01"
+    # )
     # return openai.LLM(
-    #     model="llama-3.1-8b-instant",
-    #     api_key=settings.GROQ_API_KEY,
-    #     base_url="https://api.groq.com/openai/v1"
+    #     model="gpt-5.4-mini",
+    #     client=azure_client,
+    #     reasoning_effort="low",
+    #     verbosity="low",
+    #     temperature=0.0
     # )
     # ==========================================
 
     # ==========================================
-    # Azure OpenAI (gpt-5.4-mini)
+    # Active Model: gpt-5-mini (Loads from .env)
     # ==========================================
-    logger.info("[LLM] Initializing Azure OpenAI (gpt-5.4-mini)")
+    deployment_name = "gpt-5-mini"
+    endpoint = settings.AZURE_OPENAI_ENDPOINT or "https://microfoundryergo.services.ai.azure.com/openai/v1"
+    api_key = settings.AZURE_OPENAI_API_KEY
 
-    azure_client = AsyncAzureOpenAI(
-        api_key=settings.AZURE_OPENAI_API_KEY,
-        azure_endpoint="https://abhishekazureopenaitest.openai.azure.com",
-        api_version="2024-02-01"
+    logger.info(f"[LLM] Initializing Azure OpenAI ({deployment_name})")
+
+    client = AsyncOpenAI(
+        base_url=endpoint,
+        api_key=api_key
     )
 
     return openai.LLM(
-        model="gpt-5.4-mini",
-        client=azure_client,
-        reasoning_effort="low",
-        verbosity="low",
+        model=deployment_name,
+        client=client,
         temperature=0.0
     )

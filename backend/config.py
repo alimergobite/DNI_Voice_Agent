@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
     AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY", "")
+    AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT", "")
     SARVAM_API_KEY: str = os.getenv("SARVAM_API_KEY", "sk_p6vkq7j1_Lv59JeVCDk1TcYtogYKYC0BG")
     ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
     DEEPGRAM_API_KEY: str = os.getenv("DEEPGRAM_API_KEY", "")
