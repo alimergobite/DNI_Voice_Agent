@@ -42,6 +42,11 @@ async def entrypoint(ctx: JobContext):
             metadata = json.loads(ctx.job.metadata)
         except Exception:
             pass
+    if not metadata and hasattr(ctx, "room") and ctx.room and ctx.room.metadata:
+        try:
+            metadata = json.loads(ctx.room.metadata)
+        except Exception:
+            pass
 
     customer_name = metadata.get("customer_name", "Valued Customer")
     policy_type = metadata.get("policy_type", "individual")
@@ -77,39 +82,42 @@ async def entrypoint(ctx: JobContext):
         try:
             messages = session.history.messages()
             for msg in messages:
-                if msg.role in ["user", "assistant"]:
-                    text_content = msg.content
-                    if isinstance(text_content, list):
-                        text_content = " ".join([p for p in text_content if isinstance(p, str)])
-                    transcript += f"{msg.role.upper()}: {text_content}\n"
+                role_str = getattr(msg.role, "value", str(msg.role)).upper()
+                text_content = getattr(msg, "content", "")
+                if isinstance(text_content, list):
+                    text_content = " ".join([str(p) for p in text_content if p])
+                if text_content:
+                    transcript += f"{role_str}: {text_content}\n"
         except Exception:
             pass
 
-        if transcript.strip():
-            import urllib.request, json
-            metadata = globals().get("_last_metadata", {})
-            duration = int(time.time() - getattr(session, 'start_time', time.time() - 120))
-            payload = {
-                "customer_name": customer_name,
-                "policy_type": policy_type,
-                "transcript": transcript,
-                "metadata": metadata,
-                "duration": duration,
-                "recording_url": getattr(session, 'recording_url', None)
-            }
+        if not transcript.strip():
+            transcript = f"ASSISTANT: {greeting_text}\n"
+
+        import urllib.request, json
+        metadata = globals().get("_last_metadata", {})
+        duration = max(5, int(time.time() - getattr(session, 'start_time', time.time() - 5)))
+        payload = {
+            "customer_name": customer_name,
+            "policy_type": policy_type,
+            "transcript": transcript,
+            "metadata": metadata,
+            "duration": duration,
+            "recording_url": getattr(session, 'recording_url', None)
+        }
+        try:
+            data = json.dumps(payload).encode()
+            req5 = urllib.request.Request("http://localhost:5000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
+            req8 = urllib.request.Request("http://localhost:8000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
             try:
-                data = json.dumps(payload).encode()
-                req5 = urllib.request.Request("http://localhost:5000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
-                req8 = urllib.request.Request("http://localhost:8000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
+                urllib.request.urlopen(req5, timeout=3)
+            except Exception:
                 try:
-                    urllib.request.urlopen(req5, timeout=3)
+                    urllib.request.urlopen(req8, timeout=3)
                 except Exception:
-                    try:
-                        urllib.request.urlopen(req8, timeout=3)
-                    except Exception:
-                        pass
-            except Exception as e:
-                print(f"[Agent] Failed to hand off log to backend: {e}")
+                    pass
+        except Exception as e:
+            print(f"[Agent] Failed to hand off log to backend: {e}")
 
     # Connect and subscribe ONLY to audio tracks
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
@@ -223,12 +231,8 @@ async def entrypoint(ctx: JobContext):
 
 
 async def request_fnc(req: JobRequest) -> None:
-    # Only accept explicitly dispatched jobs (those with metadata set by the bridge).
-    # This prevents LiveKit from auto-dispatching a second agent into the same room.
-    if req.job.metadata:
-        await req.accept()
-    else:
-        await req.reject()
+    # Accept all job requests so the agent joins every call (web browser and Twilio phone)
+    await req.accept()
 
 
 if __name__ == "__main__":
