@@ -53,7 +53,17 @@ class SynthesizeStream(tts.SynthesizeStream):
         
         if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted and result.audio_data:
             pcm_bytes = result.audio_data
+            print(f"[Azure TTS] Synthesized {len(pcm_bytes)} bytes for: {self._text[:60]}...")
             output_emitter.push(pcm_bytes)
+            output_emitter.flush()
+        elif result.reason == speechsdk.ResultReason.Canceled:
+            cancellation = result.cancellation_details
+            print(f"[Azure TTS ERROR] Synthesis CANCELED: Reason={cancellation.reason}")
+            print(f"[Azure TTS ERROR] Details: {cancellation.error_details}")
+            raise Exception(f"Azure TTS canceled: {cancellation.error_details}")
+        else:
+            print(f"[Azure TTS ERROR] Unexpected result reason: {result.reason}")
+            raise Exception(f"Azure TTS failed with reason: {result.reason}")
 
 def get_tts_engine(provider: str = "azure"):
     """
