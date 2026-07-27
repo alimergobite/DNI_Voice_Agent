@@ -1,6 +1,5 @@
 import asyncio
 import uuid
-import azure.cognitiveservices.speech as speechsdk
 from livekit.plugins import elevenlabs, sarvam
 from livekit.agents import tts, DEFAULT_API_CONNECT_OPTIONS
 from backend.config import settings
@@ -26,6 +25,14 @@ class SynthesizeStream(tts.SynthesizeStream):
         self._text = text
 
     async def _run(self, output_emitter):
+        try:
+            import azure.cognitiveservices.speech as speechsdk
+        except ImportError:
+            raise Exception(
+                "[Azure TTS] azure-cognitiveservices-speech is not installed in this Python env. "
+                "Run: pip install azure-cognitiveservices-speech"
+            )
+
         req_id = uuid.uuid4().hex
         output_emitter.initialize(
             request_id=req_id,
