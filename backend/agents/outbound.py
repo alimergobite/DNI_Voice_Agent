@@ -45,7 +45,7 @@ async def entrypoint(ctx: JobContext):
 
     customer_name = metadata.get("customer_name", "Valued Customer")
     policy_type = metadata.get("policy_type", "individual")
-    tts_provider = metadata.get("tts_provider", "elevenlabs")
+    tts_provider = metadata.get("tts_provider", "azure")
 
     instructions = get_outbound_prompt(customer_name, policy_type, metadata)
     greeting_text = f"Hi, this is Aisha from Dubai National Insurance. Am I speaking with {customer_name}?"
