@@ -70,12 +70,14 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
         Ask: "Could you provide your full date of birth?"
         Wait for response. 
         
-        MATCHING RULES FOR DATE OF BIRTH ({plain_english_dob}):
-        - Required target: {plain_english_dob} (3rd of February 1990).
-        - VALID MATCHES: "3rd Feb 1990", "3 February 1990", "February 3 1990", "In Feb 1990", "In February 1990", "Since Feb 1990", "Since February 1990", "teen Feb 1990".
-        - If the user provides any of these valid matches, accept immediately: say "Got it, thank you." and Ask: "Could you provide the last four digits of your Emirates ID?"
-        - REJECTION RULE: If the user provides a wrong day, wrong month, or wrong year (such as 15th Feb, 10th March, or 1991), REJECT IT! Say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
-        Wait for response. If wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
+        MATCHING RULES FOR DATE OF BIRTH:
+        - Required target date of birth: {plain_english_dob}.
+        - The user may speak the date in English, Hindi, or Hinglish (e.g., words for numbers/months like "teen", "farvari", "unnis so nabbe", "February 3 1990", "3rd Feb 1990").
+        - Convert what the user spoke into a standard date (Day, Month, Year).
+        - STRICT VERIFICATION RULE:
+          * If the user's spoken date MATCHES {plain_english_dob} (same day, same month, and same year), ACCEPT IT! Say: "Got it, thank you." and Ask: "Could you provide the last four digits of your Emirates ID?"
+          * If the user's spoken date DOES NOT MATCH {plain_english_dob} (if day, month, or year is wrong or different), YOU MUST REJECT IT! Say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
+        - Wait for response. If wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
         
         If asked for Emirates ID:
         - Target Emirates ID digits: '{emirates_id}'.
