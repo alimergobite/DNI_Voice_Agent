@@ -25,14 +25,6 @@ class SynthesizeStream(tts.SynthesizeStream):
         self._text = text
 
     async def _run(self, output_emitter):
-        try:
-            import azure.cognitiveservices.speech as speechsdk
-        except ImportError:
-            raise Exception(
-                "[Azure TTS] azure-cognitiveservices-speech is not installed in this Python env. "
-                "Run: pip install azure-cognitiveservices-speech"
-            )
-
         req_id = uuid.uuid4().hex
         output_emitter.initialize(
             request_id=req_id,
@@ -41,7 +33,70 @@ class SynthesizeStream(tts.SynthesizeStream):
             stream=False,
             mime_type="audio/pcm"
         )
+
+        # ── Method 1: Pure HTTP REST API (Prevents C++ SPXERR_ABORT exit code -6 crashes) ──
+        pcm_bytes = None
+        rest_error = None
         
+        try:
+            import urllib.request, xml.sax.saxutils
+            base_url = self._tts.endpoint_url.rstrip("/")
+            if "cognitiveservices/v1" in base_url:
+                rest_url = base_url
+            else:
+                rest_url = f"{base_url}/cognitiveservices/v1"
+
+            escaped_text = xml.sax.saxutils.escape(self._text)
+            voice_name = self._tts.voice
+            
+            ssml = (
+                f"<speak version='1.0' xml:lang='en-IN'>"
+                f"<voice xml:lang='en-IN' name='{voice_name}'>"
+                f"{escaped_text}"
+                f"</voice></speak>"
+            )
+
+            headers = {
+                "Ocp-Apim-Subscription-Key": self._tts.speech_key,
+                "Content-Type": "application/ssml+xml",
+                "X-Microsoft-OutputFormat": "raw-16khz-16bit-mono-pcm",
+                "User-Agent": "DNIVoiceAgent"
+            }
+
+            def make_rest_call(url):
+                req = urllib.request.Request(url, data=ssml.encode("utf-8"), headers=headers, method="POST")
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    return resp.read()
+
+            loop = asyncio.get_running_loop()
+            try:
+                pcm_bytes = await loop.run_in_executor(None, lambda: make_rest_call(rest_url))
+            except Exception as e1:
+                # Try alternate REST URL path if endpoint includes region / tts prefix
+                alt_url = f"{base_url}/tts/cognitiveservices/v1"
+                try:
+                    pcm_bytes = await loop.run_in_executor(None, lambda: make_rest_call(alt_url))
+                except Exception as e2:
+                    rest_error = f"REST e1: {e1}, REST e2: {e2}"
+
+        except Exception as ex:
+            rest_error = str(ex)
+
+        # If REST API succeeded and returned audio
+        if pcm_bytes and len(pcm_bytes) > 0:
+            print(f"[Azure REST TTS] Synthesized {len(pcm_bytes)} bytes for: {self._text[:60]}...")
+            output_emitter.push(pcm_bytes)
+            output_emitter.flush()
+            return
+
+        print(f"[Azure REST TTS Warning] REST synthesis failed ({rest_error}), falling back to C++ Speech SDK...")
+
+        # ── Method 2: C++ Speech SDK Fallback (with CRLF & safety flags) ──
+        try:
+            import azure.cognitiveservices.speech as speechsdk
+        except ImportError:
+            raise Exception(f"Azure REST failed ({rest_error}) and azure-cognitiveservices-speech is not installed.")
+
         speech_config = speechsdk.SpeechConfig(
             subscription=self._tts.speech_key,
             endpoint=self._tts.endpoint_url
@@ -50,6 +105,7 @@ class SynthesizeStream(tts.SynthesizeStream):
         speech_config.set_speech_synthesis_output_format(
             speechsdk.SpeechSynthesisOutputFormat.Raw16Khz16BitMonoPcm
         )
+        speech_config.set_property_by_name("OPENSSL_DISABLE_CRL_CHECK", "true")
         
         synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
         
@@ -60,16 +116,15 @@ class SynthesizeStream(tts.SynthesizeStream):
         
         if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted and result.audio_data:
             pcm_bytes = result.audio_data
-            print(f"[Azure TTS] Synthesized {len(pcm_bytes)} bytes for: {self._text[:60]}...")
+            print(f"[Azure SDK TTS] Synthesized {len(pcm_bytes)} bytes for: {self._text[:60]}...")
             output_emitter.push(pcm_bytes)
             output_emitter.flush()
         elif result.reason == speechsdk.ResultReason.Canceled:
             cancellation = result.cancellation_details
-            print(f"[Azure TTS ERROR] Synthesis CANCELED: Reason={cancellation.reason}")
-            print(f"[Azure TTS ERROR] Details: {cancellation.error_details}")
+            print(f"[Azure SDK TTS ERROR] CANCELED: Reason={cancellation.reason}, Details: {cancellation.error_details}")
             raise Exception(f"Azure TTS canceled: {cancellation.error_details}")
         else:
-            print(f"[Azure TTS ERROR] Unexpected result reason: {result.reason}")
+            print(f"[Azure SDK TTS ERROR] Unexpected reason: {result.reason}")
             raise Exception(f"Azure TTS failed with reason: {result.reason}")
 
 def get_tts_engine(provider: str = "azure"):
