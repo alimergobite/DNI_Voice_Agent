@@ -114,14 +114,10 @@ async def entrypoint(ctx: JobContext):
     # Connect and subscribe ONLY to audio tracks
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
-    from livekit.agents.voice.room_io import RoomInputOptions
-    room_input_options = RoomInputOptions(participant_identity=f"phone_{ctx.room.name}")
-
-    # Start the agent session against the room, locked to the phone participant
+    # Start the agent session against the room
     await session.start(
         room=ctx.room, 
-        agent=Agent(instructions=instructions),
-        room_input_options=room_input_options
+        agent=Agent(instructions=instructions)
     )
 
     # ── DIAGNOSTIC LOGGING: See exactly what Deepgram transcribes and what the LLM replies ──
