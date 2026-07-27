@@ -1,25 +1,12 @@
 from livekit.plugins import elevenlabs, sarvam, azure
 from backend.config import settings
 
-def get_tts_engine(provider: str = "azure"):
+def get_tts_engine(provider: str = "elevenlabs"):
     """
     Returns the configured Text-to-Speech engine dynamically.
-    Providers: "azure", "elevenlabs", "sarvam"
+    Providers: "elevenlabs", "sarvam", "azure"
     """
-    if provider == "elevenlabs":
-        return elevenlabs.TTS(
-            api_key=settings.ELEVENLABS_API_KEY, 
-            model="eleven_flash_v2_5",
-            voice_id=settings.ELEVENLABS_VOICE_ID,
-            streaming_latency=2
-        )
-    elif provider == "sarvam":
-        return sarvam.TTS(
-            api_key=settings.SARVAM_API_KEY,
-            speaker="ritu"
-        )
-    else:
-        # Default to Azure TTS (en-IN-Diya:DragonHDLatestNeural)
+    if provider == "azure":
         endpoint = settings.AZURE_OPENAI_ENDPOINT or "https://microfoundryergo.cognitiveservices.azure.com/"
         if "cognitiveservices" not in endpoint:
             endpoint = "https://microfoundryergo.cognitiveservices.azure.com/"
@@ -28,4 +15,17 @@ def get_tts_engine(provider: str = "azure"):
             voice="en-IN-Diya:DragonHDLatestNeural",
             speech_key=settings.AZURE_OPENAI_API_KEY,
             speech_endpoint=endpoint
+        )
+    elif provider == "sarvam":
+        return sarvam.TTS(
+            api_key=settings.SARVAM_API_KEY,
+            speaker="ritu"
+        )
+    else:
+        # Default to ElevenLabs (Fast, reliable streaming Aisha voice)
+        return elevenlabs.TTS(
+            api_key=settings.ELEVENLABS_API_KEY, 
+            model="eleven_flash_v2_5",
+            voice_id=settings.ELEVENLABS_VOICE_ID,
+            streaming_latency=2
         )
