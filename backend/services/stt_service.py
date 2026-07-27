@@ -1,4 +1,4 @@
-from livekit.plugins import azure, deepgram, sarvam
+from livekit.plugins import deepgram, sarvam
 from backend.config import settings
 
 def get_stt_engine(provider: str = "deepgram"):
@@ -20,8 +20,20 @@ def get_stt_engine(provider: str = "deepgram"):
             api_key=settings.SARVAM_API_KEY
         )
     else:
-        return azure.STT(
-            speech_key=settings.AZURE_SPEECH_KEY or settings.AZURE_OPENAI_API_KEY,
-            speech_endpoint=settings.AZURE_SPEECH_ENDPOINT,
-            language="en-IN"
-        )
+        # Lazy import azure plugin only if actually needed as fallback
+        try:
+            from livekit.plugins import azure
+            return azure.STT(
+                speech_key=settings.AZURE_SPEECH_KEY or settings.AZURE_OPENAI_API_KEY,
+                speech_endpoint=settings.AZURE_SPEECH_ENDPOINT,
+                language="en-IN"
+            )
+        except ImportError:
+            print("[STT] WARNING: livekit-plugins-azure not installed, falling back to Deepgram")
+            return deepgram.STT(
+                model="nova-2-general",
+                language="en-IN",
+                api_key=settings.DEEPGRAM_API_KEY,
+                smart_format=True
+            )
+
