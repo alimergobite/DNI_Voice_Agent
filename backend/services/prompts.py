@@ -54,6 +54,7 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
        - Convert all spoken words, numbers, and month names into numeric format (Day, Month, Year).
        - Compare all 3 parts (day, month, year) against the required record. If day, month, and year match, ACCEPT IT! If any part is missing or incorrect, REJECT IT!
     7. CRITICAL LANGUAGE RULE: Even if the user speaks to you in Hindi or Arabic, you MUST ALWAYS REPLY IN ENGLISH ONLY. Never speak a single word of Hindi or Arabic, because your voice engine cannot pronounce it.
+    8. CRITICAL NO-EMOJI RULE: NEVER include any emojis, smileys, or markdown formatting (e.g. 😊, 👋, *, #) in your text under any circumstances. Reply ONLY in plain spoken English text.
     
     # The Official Welcome Call Script:
     
