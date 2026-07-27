@@ -17,7 +17,7 @@ from livekit import api as livekit_api
 from livekit.api import LiveKitAPI
 from livekit.plugins import silero
 
-custom_vad = silero.VAD.load(min_speech_duration=0.2, min_silence_duration=0.5, activation_threshold=0.8)
+custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.25, activation_threshold=0.7)
 
 
 from backend.services.llm_service import get_llm_engine
@@ -54,7 +54,7 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession(
         stt=get_stt_engine(),
         vad=custom_vad,
-        min_endpointing_delay=0.5,
+        min_endpointing_delay=0.15,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
         preemptive_generation=True,
@@ -210,6 +210,17 @@ async def entrypoint(ctx: JobContext):
         "disconnected",
         lambda *args: (save_transcript_to_db(), print("[Agent] Room disconnected."))
     )
+
+    # Wait specifically for the Twilio Bridge participant (phone_) to join before greeting
+    phone_participant = None
+    while not phone_participant:
+        # Check existing participants
+        for p in ctx.room.remote_participants.values():
+            if p.identity.startswith("phone_"):
+                phone_participant = p
+                break
+        if not phone_participant:
+            await asyncio.sleep(0.1)
 
     try:
         await session.say(greeting_text, allow_interruptions=False)

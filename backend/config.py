@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
     AZURE_OPENAI_API_KEY: str = os.getenv("AZURE_OPENAI_API_KEY", "")
     AZURE_OPENAI_ENDPOINT: str = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    ANTHROPIC_ENDPOINT: str = os.getenv("ANTHROPIC_ENDPOINT", "https://microfoundryergo.services.ai.azure.com/anthropic")
     SARVAM_API_KEY: str = os.getenv("SARVAM_API_KEY", "sk_tzpfhtqp_hG1I9JuBiHoZTEXf6VDX59ch")
     ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL")
     DEEPGRAM_API_KEY: str = os.getenv("DEEPGRAM_API_KEY", "")

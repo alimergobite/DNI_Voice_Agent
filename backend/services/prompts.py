@@ -12,25 +12,27 @@ def get_inbound_prompt(customer_name: str, policy_name: str) -> str:
 
 from datetime import datetime
 
-def _get_plain_english_dob(dob_str: str) -> str:
-    """
-    Converts any database date format into a single, crystal-clear plain English date
-    for the LLM (e.g., "February 3, 1990").
-    """
+def _get_parsed_dob(dob_str: str) -> dict:
     for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%m/%d/%Y"):
         try:
             dt = datetime.strptime(dob_str, fmt)
-            return dt.strftime("%B %d, %Y")  # e.g., February 03, 1990
+            return {
+                "plain": dt.strftime("%B %d, %Y"),
+                "day": str(dt.day),
+                "month_name": dt.strftime("%B"),
+                "month_num": str(dt.month),
+                "year": str(dt.year)
+            }
         except ValueError:
             continue
-    return dob_str
+    return {"plain": dob_str, "day": dob_str, "month_name": dob_str, "month_num": dob_str, "year": dob_str}
 
 
 def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) -> str:
     emirates_id = metadata.get("emirates_id", "NOT_PROVIDED")
     dob = metadata.get("date_of_birth", "NOT_PROVIDED")
     trade_licence = metadata.get("trade_licence", "NOT_PROVIDED")
-    plain_english_dob = _get_plain_english_dob(dob)
+    dob_info = _get_parsed_dob(dob)
     
     return f"""
     You are Aisha, an AI Voice Agent representing Platinum Insurance Broker LLC (partnered with Dubai National Insurance).
@@ -65,32 +67,44 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     """ + (
         f"""
         [INDIVIDUAL POLICY KYC]
-        The user's actual required date of birth is: {plain_english_dob}.
+        The user's actual required date of birth is: {dob_info['plain']}.
         The last 4 digits of their Emirates ID are {emirates_id}.
         Ask: "Could you provide your full date of birth?"
         Wait for response. 
         
-        MATCHING RULES FOR DATE OF BIRTH:
-        - Required target date of birth: {plain_english_dob}.
-        - The user may speak the date in English, Hindi, or Hinglish (e.g., "teen Feb 2001", "3 February 1990", "February 3 1990").
-        
-        CRITICAL STEP-BY-STEP DATE CHECKLIST (YOU MUST CHECK ALL THREE):
-        1. Extract Spoken Day, Spoken Month, and Spoken Year from user audio.
-        2. Compare Spoken Year against Required Year in {plain_english_dob} (e.g. 2001 is WRONG for 1990! 1991 is WRONG for 1990!).
-        3. Compare Spoken Month against Required Month in {plain_english_dob}.
-        4. Compare Spoken Day against Required Day in {plain_english_dob}.
-        
-        STRICT DECISION RULE:
-        - If Day, Month, AND Year ALL THREE match {plain_english_dob} 100% perfectly: ACCEPT IT! Say: "Got it, thank you." and Ask: "Could you provide the last four digits of your Emirates ID?"
-        - If ANY single part (wrong year, wrong month, or wrong day) is different, YOU MUST REJECT IT IMMEDIATELY! Say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
-        - Wait for response. If wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
-                If asked for Emirates ID:
-        - Target Emirates ID digits: '{emirates_id}'.
-        - STT PHONETIC DIGIT MAPPING: Speech-to-Text often transcribes spoken Hindi digits phonetically as words (e.g. "paanch" -> "Pohatch", "chheh/saat" -> "Fox", "sat", "aath", "chaar", "tin", "ek", "do", "unnis").
-        - STRICT NUMBER VERIFICATION: The user MUST provide the numeric digits representing '{emirates_id}'. If the user says vague background phrases (e.g., "woh theek hai", "haan ji", "okay", "pata nahi") or provides incorrect digits, YOU MUST REJECT IT!
-        - If rejected on 1st attempt: Say "I'm sorry, that does not match our records. Could you please provide the last four digits of your Emirates ID once more?"
-        - If rejected on 2nd attempt: Say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
-        - If accepted: Say "Thank you for sharing this information." and proceed immediately to Step 3.
+        <strict_security_validation>
+          <required_dob_record>
+            - Target Day: '{dob_info['day']}'
+            - Target Month: '{dob_info['month_name']}' (Month #{dob_info['month_num']})
+            - Required Year: '{dob_info['year']}'
+            - Full Date: '{dob_info['plain']}'
+          </required_dob_record>
+
+          <required_emirates_id>'{emirates_id}'</required_emirates_id>
+
+          <dob_strict_matching_algorithm>
+            Step 1: Extract spoken Day, spoken Month, and spoken Year from user response.
+            Step 2: Check each part against the required record:
+              - Spoken Day must match target day '{dob_info['day']}'.
+              - Spoken Month must match target month '{dob_info['month_name']}' / #{dob_info['month_num']}.
+              - Spoken Year must match target year '{dob_info['year']}'.
+            Step 3:
+              - IF Spoken Day != '{dob_info['day']}' OR Spoken Month != '{dob_info['month_name']}' OR Spoken Year != '{dob_info['year']}':
+                YOU MUST REJECT! Say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
+              - IF Spoken Day == '{dob_info['day']}' AND Spoken Month == '{dob_info['month_name']}' AND Spoken Year == '{dob_info['year']}':
+                ACCEPT! Say: "Got it, thank you." and Ask: "Could you provide the last four digits of your Emirates ID?"
+            Step 4: If wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end call.
+          </dob_strict_matching_algorithm>
+
+          <emirates_id_validation_rules>
+            1. Convert spoken words or STT digits (e.g. "paanch", "Pohatch", "chaar", "tin", "ek", "do") into 4 digits.
+            2. IF the 4 digits DO NOT MATCH '{emirates_id}': YOU MUST REJECT!
+               Say: "I'm sorry, that does not match our records. Could you please provide the last four digits once more?"
+            3. IF the 4 digits MATCH '{emirates_id}': ACCEPT!
+               Say: "Thank you for sharing this information." and proceed to Step 3.
+            4. If wrong a second time: Say "I apologize, but for security reasons I cannot proceed. Goodbye." and end call.
+          </emirates_id_validation_rules>
+        </strict_security_validation>
         """ if policy_type.lower() == "individual" else f"""
         [CORPORATE POLICY KYC]
         The company's actual Trade Licence number last 4 digits are {trade_licence}.
@@ -105,8 +119,6 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
     3. Customer Experience & Feedback
     Ask: "On a scale of 1 to 10, where 1 is poor and 10 is excellent, how would you rate your overall experience with our service?"
     Wait for response.
-    - STRICT RATING RULE: The user response MUST contain a numeric score from 1 to 10 (spoken in digits or words like "aath", "das", "8", "10", "five").
-    - If the user says a non-numeric background phrase like "haan ji", "haan", "okay" without giving a rating number: Ask "Could you please give a rating from 1 to 10?"
     - If 8-10 (Positive): "That’s great to hear! Would you be open to leaving us a quick Google review? I can send the link via WhatsApp."
       - If they say "yes": Say "Perfect, I'll send that link over right after this call." and proceed directly to Step 4.
       - If they say "no": Say "No problem at all!" and proceed directly to Step 4.
