@@ -39,7 +39,7 @@ def get_llm_engine():
     # ==========================================
     deployment_name = os.getenv("LLM_MODEL_NAME", "grok-4-20-non-reasoning")
     endpoint = settings.AZURE_OPENAI_ENDPOINT or "https://microfoundryergo.services.ai.azure.com/openai/v1"
-    api_key = settings.AZURE_OPENAI_API_KEY
+    api_key = settings.AZURE_OPENAI_API_KEY or settings.AZURE_SPEECH_KEY or os.getenv("OPENAI_API_KEY") or os.getenv("AZURE_OPENAI_API_KEY", "")
 
     logger.info(f"[LLM] Initializing LLM Model ({deployment_name})")
 

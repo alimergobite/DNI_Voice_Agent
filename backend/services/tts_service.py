@@ -26,6 +26,15 @@ class SynthesizeStream(tts.SynthesizeStream):
         self._text = text
 
     async def _run(self, output_emitter):
+        req_id = uuid.uuid4().hex
+        output_emitter.initialize(
+            request_id=req_id,
+            sample_rate=16000,
+            num_channels=1,
+            stream=False,
+            mime_type="audio/pcm"
+        )
+        
         speech_config = speechsdk.SpeechConfig(
             subscription=self._tts.speech_key,
             endpoint=self._tts.endpoint_url
@@ -42,20 +51,9 @@ class SynthesizeStream(tts.SynthesizeStream):
             None, lambda: synthesizer.speak_text_async(self._text).get()
         )
         
-        req_id = uuid.uuid4().hex
         if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted and result.audio_data:
             pcm_bytes = result.audio_data
-            output_emitter.initialize(
-                request_id=req_id,
-                sample_rate=16000,
-                num_channels=1,
-                stream=True,
-                mime_type="audio/pcm"
-            )
-            output_emitter.start_segment(segment_id=req_id)
             output_emitter.push(pcm_bytes)
-            output_emitter.end_segment()
-            output_emitter.end_input()
 
 def get_tts_engine(provider: str = "azure"):
     """
