@@ -1,3 +1,4 @@
+import os
 import logging
 from livekit.plugins import openai
 from openai import AsyncOpenAI
@@ -28,19 +29,15 @@ def get_llm_engine():
     # ==========================================
 
     # ==========================================
-    # PREVIOUS CODE (gpt-5-mini)
-    # ==========================================
-    # deployment_name = "gpt-5-mini"
-    # endpoint = settings.AZURE_OPENAI_ENDPOINT or "https://microfoundryergo.services.ai.azure.com/openai/v1"
-    # api_key = settings.AZURE_OPENAI_API_KEY
-    # client = AsyncOpenAI(base_url=endpoint, api_key=api_key)
-    # return openai.LLM(model=deployment_name, client=client, temperature=0.0)
+    # PREVIOUS MODELS:
+    # - grok-4-20-reasoning
+    # - gpt-5-mini
     # ==========================================
 
     # ==========================================
-    # Active Model: grok-4-20-reasoning
+    # Active Model: grok-4-20-non-reasoning
     # ==========================================
-    deployment_name = "grok-4-20-reasoning"
+    deployment_name = os.getenv("LLM_MODEL_NAME", "grok-4-20-non-reasoning")
     endpoint = settings.AZURE_OPENAI_ENDPOINT or "https://microfoundryergo.services.ai.azure.com/openai/v1"
     api_key = settings.AZURE_OPENAI_API_KEY
 
