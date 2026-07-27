@@ -274,7 +274,7 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
   onClose: () => void;
   onCallStart: (token: string, roomName: string) => void;
 }) {
-  const [ttsProvider, setTtsProvider] = useState("elevenlabs");
+  const [ttsProvider, setTtsProvider] = useState("azure");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -355,16 +355,26 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
               <X size={16} />
             </button>
           </div>
-          <p className="text-sm text-slate-500 mb-4">Calling <span className="font-semibold text-slate-700">{contact.name}</span></p>
+          <p className="text-sm text-slate-500">Initiate call to <span className="font-semibold text-slate-800">{contact.name}</span></p>
         </div>
         <div className="px-7 pb-7 space-y-4">
           {/* TTS Provider */}
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Select Voice</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                onClick={() => setTtsProvider("azure")}
+                className={`py-2.5 rounded-xl border-2 text-xs font-semibold transition-all ${
+                  ttsProvider === "azure"
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                    : "border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}
+              >
+                🎙 Azure (Diya)
+              </button>
               <button
                 onClick={() => setTtsProvider("elevenlabs")}
-                className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+                className={`py-2.5 rounded-xl border-2 text-xs font-semibold transition-all ${
                   ttsProvider === "elevenlabs"
                     ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                     : "border-slate-200 text-slate-500 hover:border-slate-300"
@@ -402,7 +412,7 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
 
 // ─── New Call Form Modal ──────────────────────────────────────────────────────
 function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallStart: (token: string, roomName: string) => void }) {
-  const [form, setForm] = useState<FormData>({ policyType: "individual", phone: "", contactName: "", dateOfBirth: "", emiratesId: "", companyName: "", tradeLicence: "", ttsProvider: "elevenlabs", elevenlabsApiKey: "" });
+  const [form, setForm] = useState<FormData>({ policyType: "individual", phone: "", contactName: "", dateOfBirth: "", emiratesId: "", companyName: "", tradeLicence: "", ttsProvider: "azure", elevenlabsApiKey: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -553,6 +563,7 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Select Provider</label>
             <div className="relative">
               <select value={form.ttsProvider} onChange={e => update("ttsProvider", e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-10 text-slate-800 font-medium appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
+                <option value="azure">Azure (Diya Voice)</option>
                 <option value="elevenlabs">ElevenLabs (Archana Voice)</option>
                 <option value="sarvam">Sarvam (Simran)</option>
               </select>
