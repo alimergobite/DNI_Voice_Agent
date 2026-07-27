@@ -361,30 +361,20 @@ function QuickCallModal({ contact, onClose, onCallStart }: {
           {/* TTS Provider */}
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">Select Voice</label>
-            <div className="grid grid-cols-3 gap-1">
-              <button
-                onClick={() => setTtsProvider("azure")}
-                className={`py-2.5 rounded-xl border-2 text-xs font-semibold transition-all ${
-                  ttsProvider === "azure"
-                    ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                    : "border-slate-200 text-slate-500 hover:border-slate-300"
-                }`}
-              >
-                ☁️ Azure
-              </button>
+            <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => setTtsProvider("elevenlabs")}
-                className={`py-2.5 rounded-xl border-2 text-xs font-semibold transition-all ${
+                className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
                   ttsProvider === "elevenlabs"
                     ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                     : "border-slate-200 text-slate-500 hover:border-slate-300"
                 }`}
               >
-                🎙 Eleven
+                🎙 ElevenLabs
               </button>
               <button
                 onClick={() => setTtsProvider("sarvam")}
-                className={`py-2.5 rounded-xl border-2 text-xs font-semibold transition-all ${
+                className={`py-3 rounded-xl border-2 text-sm font-semibold transition-all ${
                   ttsProvider === "sarvam"
                     ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                     : "border-slate-200 text-slate-500 hover:border-slate-300"
@@ -563,9 +553,8 @@ function NewCallModal({ onClose, onCallStart }: { onClose: () => void; onCallSta
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">Select Provider</label>
             <div className="relative">
               <select value={form.ttsProvider} onChange={e => update("ttsProvider", e.target.value)} className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-10 text-slate-800 font-medium appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
-                <option value="azure">Azure Speech (Diya DragonHD Neural)</option>
-                <option value="elevenlabs">ElevenLabs (Aisha Voice)</option>
-                <option value="sarvam">Sarvam (Simran/Ritu Voice)</option>
+                <option value="elevenlabs">ElevenLabs (Archana Voice)</option>
+                <option value="sarvam">Sarvam (Simran)</option>
               </select>
               <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                 <ChevronDown size={16} />
