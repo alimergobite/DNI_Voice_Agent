@@ -10,10 +10,9 @@ def get_llm_engine():
     Returns the configured LLM Engine for the agent.
     """
     # ==========================================
-    # PREVIOUS CODE (Azure OpenAI gpt-5.4-mini)
+    # PREVIOUS CODE (gpt-5.4-mini)
     # ==========================================
     # from openai import AsyncAzureOpenAI
-    # logger.info("[LLM] Initializing Azure OpenAI (gpt-5.4-mini)")
     # azure_client = AsyncAzureOpenAI(
     #     api_key=settings.AZURE_OPENAI_API_KEY,
     #     azure_endpoint="https://abhishekazureopenaitest.openai.azure.com",
@@ -29,13 +28,23 @@ def get_llm_engine():
     # ==========================================
 
     # ==========================================
-    # Active Model: gpt-5-mini (Loads from .env)
+    # PREVIOUS CODE (gpt-5-mini)
     # ==========================================
-    deployment_name = "gpt-5-mini"
+    # deployment_name = "gpt-5-mini"
+    # endpoint = settings.AZURE_OPENAI_ENDPOINT or "https://microfoundryergo.services.ai.azure.com/openai/v1"
+    # api_key = settings.AZURE_OPENAI_API_KEY
+    # client = AsyncOpenAI(base_url=endpoint, api_key=api_key)
+    # return openai.LLM(model=deployment_name, client=client, temperature=0.0)
+    # ==========================================
+
+    # ==========================================
+    # Active Model: grok-4-20-reasoning
+    # ==========================================
+    deployment_name = "grok-4-20-reasoning"
     endpoint = settings.AZURE_OPENAI_ENDPOINT or "https://microfoundryergo.services.ai.azure.com/openai/v1"
     api_key = settings.AZURE_OPENAI_API_KEY
 
-    logger.info(f"[LLM] Initializing Azure OpenAI ({deployment_name})")
+    logger.info(f"[LLM] Initializing LLM Model ({deployment_name})")
 
     client = AsyncOpenAI(
         base_url=endpoint,
