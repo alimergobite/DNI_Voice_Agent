@@ -1,7 +1,6 @@
 import asyncio
 import uuid
 import azure.cognitiveservices.speech as speechsdk
-from livekit import rtc
 from livekit.plugins import elevenlabs, sarvam
 from livekit.agents import tts, DEFAULT_API_CONNECT_OPTIONS
 from backend.config import settings
@@ -46,9 +45,6 @@ class SynthesizeStream(tts.SynthesizeStream):
         req_id = uuid.uuid4().hex
         if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted and result.audio_data:
             pcm_bytes = result.audio_data
-            samples_per_frame = 320 # 20ms at 16kHz
-            bytes_per_frame = samples_per_frame * 2
-            
             output_emitter.initialize(
                 request_id=req_id,
                 sample_rate=16000,
@@ -57,18 +53,9 @@ class SynthesizeStream(tts.SynthesizeStream):
                 mime_type="audio/pcm"
             )
             output_emitter.start_segment(segment_id=req_id)
-            
-            for i in range(0, len(pcm_bytes), bytes_per_frame):
-                chunk = pcm_bytes[i:i + bytes_per_frame]
-                if len(chunk) == bytes_per_frame:
-                    frame = rtc.AudioFrame(
-                        data=chunk,
-                        sample_rate=16000,
-                        num_channels=1,
-                        samples_per_channel=samples_per_frame
-                    )
-                    output_emitter.push(frame)
+            output_emitter.push(pcm_bytes)
             output_emitter.end_segment()
+            output_emitter.end_input()
 
 def get_tts_engine(provider: str = "azure"):
     """

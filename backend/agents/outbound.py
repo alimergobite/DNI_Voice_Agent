@@ -211,16 +211,13 @@ async def entrypoint(ctx: JobContext):
         lambda *args: (save_transcript_to_db(), print("[Agent] Room disconnected."))
     )
 
-    # Wait specifically for the Twilio Bridge participant (phone_) to join before greeting
-    phone_participant = None
-    while not phone_participant:
-        # Check existing participants
-        for p in ctx.room.remote_participants.values():
-            if p.identity.startswith("phone_"):
-                phone_participant = p
-                break
-        if not phone_participant:
-            await asyncio.sleep(0.1)
+    # Wait for any participant (phone or web operator) to join before greeting
+    joined_participant = None
+    while not joined_participant:
+        if len(ctx.room.remote_participants) > 0:
+            joined_participant = list(ctx.room.remote_participants.values())[0]
+            break
+        await asyncio.sleep(0.1)
 
     try:
         await session.say(greeting_text, allow_interruptions=False)
