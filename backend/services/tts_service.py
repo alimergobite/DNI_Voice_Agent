@@ -127,17 +127,19 @@ class SynthesizeStream(tts.SynthesizeStream):
             print(f"[Azure SDK TTS ERROR] Unexpected reason: {result.reason}")
             raise Exception(f"Azure TTS failed with reason: {result.reason}")
 
-def get_tts_engine(provider: str = "azure"):
+def get_tts_engine(provider: str = "sarvam"):
     """
     Returns the configured Text-to-Speech (TTS) engine.
-    Defaults to Azure Speech SDK TTS with voice 'en-IN-Diya:DragonHDLatestNeural'.
+    Defaults to Sarvam AI TTS (bulbul:v3, speaker ritu) for fast streaming synthesis.
     """
-    if provider == "sarvam":
+    if (provider == "sarvam" or not provider) and settings.SARVAM_API_KEY:
+        print("[TTS] Using Sarvam AI TTS (model=bulbul:v3, speaker=ritu)")
         return sarvam.TTS(
             api_key=settings.SARVAM_API_KEY,
             speaker="ritu"
         )
     elif provider == "elevenlabs":
+        print("[TTS] Using ElevenLabs TTS (model=eleven_flash_v2_5)")
         return elevenlabs.TTS(
             api_key=settings.ELEVENLABS_API_KEY, 
             model="eleven_flash_v2_5",
@@ -145,9 +147,11 @@ def get_tts_engine(provider: str = "azure"):
             streaming_latency=2
         )
     else:
-        # Default to Azure Speech SDK TTS (en-IN-Diya:DragonHDLatestNeural)
+        # Azure Speech REST/SDK TTS
+        print("[TTS] Using Azure Neural TTS (en-IN-Diya:DragonHDLatestNeural)")
         return AzureSpeechSDKTTS(
             speech_key=settings.AZURE_SPEECH_KEY or settings.AZURE_OPENAI_API_KEY,
             endpoint_url=settings.AZURE_SPEECH_ENDPOINT,
             voice="en-IN-Diya:DragonHDLatestNeural"
         )
+
