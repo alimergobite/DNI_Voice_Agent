@@ -1,21 +1,21 @@
 from livekit.plugins import deepgram, sarvam
 from backend.config import settings
 
-def get_stt_engine(provider: str = "sarvam"):
+def get_stt_engine(provider: str = "deepgram"):
     """
     Returns the configured Speech-to-Text (STT) engine.
-    Utilizes Sarvam AI (saaras:v3) by default for native Hindi, Hinglish, and telephonic speech recognition.
+    Uses Deepgram (nova-2-general) by default when Sarvam credits are exhausted.
     """
-    if provider == "deepgram":
+    if provider == "sarvam" and settings.SARVAM_API_KEY:
+        return sarvam.STT(
+            model="saaras:v3",
+            language="hi-IN",
+            api_key=settings.SARVAM_API_KEY
+        )
+    else:
         return deepgram.STT(
             model="nova-2-general",
             language="en-IN",
             api_key=settings.DEEPGRAM_API_KEY,
             smart_format=True
-        )
-    else:
-        return sarvam.STT(
-            model="saaras:v3",
-            language="hi-IN",
-            api_key=settings.SARVAM_API_KEY
         )
