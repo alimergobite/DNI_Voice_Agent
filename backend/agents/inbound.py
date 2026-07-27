@@ -101,9 +101,9 @@ async def entrypoint(ctx: JobContext):
         llm=get_llm_engine(),
         tts=get_tts_engine(),
         vad=silero.VAD.load(
-            activation_threshold=0.5,
-            min_speech_duration=0.05,
-            min_silence_duration=0.25,
+            activation_threshold=0.8,
+            min_speech_duration=0.2,
+            min_silence_duration=0.5,
         ),
     )
 

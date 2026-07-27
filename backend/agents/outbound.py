@@ -17,7 +17,7 @@ from livekit import api as livekit_api
 from livekit.api import LiveKitAPI
 from livekit.plugins import silero
 
-custom_vad = silero.VAD.load(min_speech_duration=0.05, min_silence_duration=0.25, activation_threshold=0.7)
+custom_vad = silero.VAD.load(min_speech_duration=0.2, min_silence_duration=0.5, activation_threshold=0.8)
 
 
 from backend.services.llm_service import get_llm_engine
@@ -42,15 +42,10 @@ async def entrypoint(ctx: JobContext):
             metadata = json.loads(ctx.job.metadata)
         except Exception:
             pass
-    if not metadata and hasattr(ctx, "room") and ctx.room and ctx.room.metadata:
-        try:
-            metadata = json.loads(ctx.room.metadata)
-        except Exception:
-            pass
 
     customer_name = metadata.get("customer_name", "Valued Customer")
     policy_type = metadata.get("policy_type", "individual")
-    tts_provider = metadata.get("tts_provider", "azure")
+    tts_provider = metadata.get("tts_provider", "elevenlabs")
 
     instructions = get_outbound_prompt(customer_name, policy_type, metadata)
     greeting_text = f"Hi, this is Aisha from Dubai National Insurance. Am I speaking with {customer_name}?"
@@ -59,7 +54,7 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession(
         stt=get_stt_engine(),
         vad=custom_vad,
-        min_endpointing_delay=0.15,
+        min_endpointing_delay=0.5,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
         preemptive_generation=True,
@@ -82,50 +77,51 @@ async def entrypoint(ctx: JobContext):
         try:
             messages = session.history.messages()
             for msg in messages:
-                role_str = getattr(msg.role, "value", str(msg.role)).upper()
-                text_content = getattr(msg, "content", "")
-                if isinstance(text_content, list):
-                    text_content = " ".join([str(p) for p in text_content if p])
-                if text_content:
-                    transcript += f"{role_str}: {text_content}\n"
+                if msg.role in ["user", "assistant"]:
+                    text_content = msg.content
+                    if isinstance(text_content, list):
+                        text_content = " ".join([p for p in text_content if isinstance(p, str)])
+                    transcript += f"{msg.role.upper()}: {text_content}\n"
         except Exception:
             pass
 
-        if not transcript.strip():
-            transcript = f"ASSISTANT: {greeting_text}\n"
-
-        import urllib.request, json
-        metadata = globals().get("_last_metadata", {})
-        duration = max(5, int(time.time() - getattr(session, 'start_time', time.time() - 5)))
-        payload = {
-            "customer_name": customer_name,
-            "policy_type": policy_type,
-            "transcript": transcript,
-            "metadata": metadata,
-            "duration": duration,
-            "recording_url": getattr(session, 'recording_url', None)
-        }
-        try:
-            data = json.dumps(payload).encode()
-            req5 = urllib.request.Request("http://localhost:5000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
-            req8 = urllib.request.Request("http://localhost:8000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
+        if transcript.strip():
+            import urllib.request, json
+            metadata = globals().get("_last_metadata", {})
+            duration = int(time.time() - getattr(session, 'start_time', time.time() - 120))
+            payload = {
+                "customer_name": customer_name,
+                "policy_type": policy_type,
+                "transcript": transcript,
+                "metadata": metadata,
+                "duration": duration,
+                "recording_url": getattr(session, 'recording_url', None)
+            }
             try:
-                urllib.request.urlopen(req5, timeout=3)
-            except Exception:
+                data = json.dumps(payload).encode()
+                req5 = urllib.request.Request("http://localhost:5000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
+                req8 = urllib.request.Request("http://localhost:8000/api/process_log", data=data, headers={'Content-Type': 'application/json'})
                 try:
-                    urllib.request.urlopen(req8, timeout=3)
+                    urllib.request.urlopen(req5, timeout=3)
                 except Exception:
-                    pass
-        except Exception as e:
-            print(f"[Agent] Failed to hand off log to backend: {e}")
+                    try:
+                        urllib.request.urlopen(req8, timeout=3)
+                    except Exception:
+                        pass
+            except Exception as e:
+                print(f"[Agent] Failed to hand off log to backend: {e}")
 
     # Connect and subscribe ONLY to audio tracks
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
-    # Start the agent session against the room
+    from livekit.agents.voice.room_io import RoomInputOptions
+    room_input_options = RoomInputOptions(participant_identity=f"phone_{ctx.room.name}")
+
+    # Start the agent session against the room, locked to the phone participant
     await session.start(
         room=ctx.room, 
-        agent=Agent(instructions=instructions)
+        agent=Agent(instructions=instructions),
+        room_input_options=room_input_options
     )
 
     # ── DIAGNOSTIC LOGGING: See exactly what Deepgram transcribes and what the LLM replies ──
@@ -215,13 +211,16 @@ async def entrypoint(ctx: JobContext):
         lambda *args: (save_transcript_to_db(), print("[Agent] Room disconnected."))
     )
 
-    # Wait for any participant (phone or web operator) to join before greeting
-    joined_participant = None
-    while not joined_participant:
-        if len(ctx.room.remote_participants) > 0:
-            joined_participant = list(ctx.room.remote_participants.values())[0]
-            break
-        await asyncio.sleep(0.1)
+    # Wait specifically for the Twilio Bridge participant (phone_) to join before greeting
+    phone_participant = None
+    while not phone_participant:
+        # Check existing participants
+        for p in ctx.room.remote_participants.values():
+            if p.identity.startswith("phone_"):
+                phone_participant = p
+                break
+        if not phone_participant:
+            await asyncio.sleep(0.1)
 
     try:
         await session.say(greeting_text, allow_interruptions=False)
@@ -231,8 +230,12 @@ async def entrypoint(ctx: JobContext):
 
 
 async def request_fnc(req: JobRequest) -> None:
-    # Accept all job requests so the agent joins every call (web browser and Twilio phone)
-    await req.accept()
+    # Only accept explicitly dispatched jobs (those with metadata set by the bridge).
+    # This prevents LiveKit from auto-dispatching a second agent into the same room.
+    if req.job.metadata:
+        await req.accept()
+    else:
+        await req.reject()
 
 
 if __name__ == "__main__":
