@@ -64,7 +64,7 @@ class DialRequest(BaseModel):
     emirates_id: str = ""
     company_name: str = ""
     trade_licence: str = ""
-    tts_provider: str = "elevenlabs"
+    tts_provider: str = "azure"
 
 @router.post("/api/dial")
 async def dial_outbound(payload: DialRequest, request: Request):
