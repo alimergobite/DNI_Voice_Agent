@@ -72,11 +72,17 @@ def get_outbound_prompt(customer_name: str, policy_type: str, metadata: dict) ->
         
         MATCHING RULES FOR DATE OF BIRTH:
         - Required target date of birth: {plain_english_dob}.
-        - The user may speak the date in English, Hindi, or Hinglish (e.g., words for numbers/months like "teen", "farvari", "unnis so nabbe", "February 3 1990", "3rd Feb 1990").
-        - Convert what the user spoke into a standard date (Day, Month, Year).
-        - STRICT VERIFICATION RULE:
-          * If the user's spoken date MATCHES {plain_english_dob} (same day, same month, and same year), ACCEPT IT! Say: "Got it, thank you." and Ask: "Could you provide the last four digits of your Emirates ID?"
-          * If the user's spoken date DOES NOT MATCH {plain_english_dob} (if day, month, or year is wrong or different), YOU MUST REJECT IT! Say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
+        - The user may speak the date in English, Hindi, or Hinglish (e.g., "teen Feb 2001", "3 February 1990", "February 3 1990").
+        
+        CRITICAL STEP-BY-STEP DATE CHECKLIST (YOU MUST CHECK ALL THREE):
+        1. Extract Spoken Day, Spoken Month, and Spoken Year from user audio.
+        2. Compare Spoken Year against Required Year in {plain_english_dob} (e.g. 2001 is WRONG for 1990! 1991 is WRONG for 1990!).
+        3. Compare Spoken Month against Required Month in {plain_english_dob}.
+        4. Compare Spoken Day against Required Day in {plain_english_dob}.
+        
+        STRICT DECISION RULE:
+        - If Day, Month, AND Year ALL THREE match {plain_english_dob} 100% perfectly: ACCEPT IT! Say: "Got it, thank you." and Ask: "Could you provide the last four digits of your Emirates ID?"
+        - If ANY single part (wrong year, wrong month, or wrong day) is different, YOU MUST REJECT IT IMMEDIATELY! Say: "I'm sorry, that does not match our records. Could you please verify your full date of birth once more?"
         - Wait for response. If wrong a second time, say "I apologize, but for security reasons I cannot proceed. Goodbye." and end the call.
                 If asked for Emirates ID:
         - Target Emirates ID digits: '{emirates_id}'.
