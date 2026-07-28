@@ -16,6 +16,6 @@ def get_stt_engine(provider: str = "sarvam"):
     else:
         return sarvam.STT(
             model="saaras:v3",
-            language="hi-IN",
+            language="en-IN",
             api_key=settings.SARVAM_API_KEY
         )
