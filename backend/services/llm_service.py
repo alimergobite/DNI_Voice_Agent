@@ -8,9 +8,13 @@ logger = logging.getLogger(__name__)
 def get_llm_engine():
     """
     Returns the configured LLM Engine for the agent.
-    Configured for grok-4-20-reasoning via Azure OpenAI.
+    Configured for grok-4-1-fast-reasoning via Azure OpenAI.
+
+    NOTE: Despite "reasoning" in the name, the *fast* variant streams content
+    immediately (no chain-of-thought delay), giving ~3s time-to-first-token vs
+    ~17s for grok-4-20-reasoning. See AGENTS.md 7.5.
     """
-    deployment_name = "grok-4-20-reasoning"
+    deployment_name = "grok-4-1-fast-reasoning"
     endpoint = settings.AZURE_OPENAI_ENDPOINT or "https://microfoundryergo.services.ai.azure.com/openai/v1"
     api_key = settings.AZURE_OPENAI_API_KEY
 
