@@ -68,6 +68,38 @@ async def entrypoint(ctx: JobContext):
     global _last_metadata
     _last_metadata = metadata
 
+    # Fillers spoken during the call, as (user_text_that_triggered_it, filler).
+    # Kept out of session.history so the LLM never sees them; merged back into
+    # the saved transcript below so the log matches what the caller heard.
+    _spoken_fillers = []
+
+    def _merge_fillers_into_transcript(transcript: str) -> str:
+        """Insert each filler after the USER line that triggered it."""
+        if not _spoken_fillers:
+            return transcript
+
+        pending = list(_spoken_fillers)
+        out = []
+        for line in transcript.split("\n"):
+            out.append(line)
+            if not line.startswith("USER:"):
+                continue
+            said = line[len("USER:"):].strip()
+            for i, (trigger, filler) in enumerate(pending):
+                # STT may split one utterance across several finals, so the
+                # saved USER line can be longer than the fragment that fired
+                # the filler; match on containment either way.
+                if trigger and (trigger in said or said in trigger):
+                    out.append(f"ASSISTANT: {filler}")
+                    pending.pop(i)
+                    break
+
+        # Anything unmatched (e.g. the user line was dropped from history)
+        # still belongs in the record rather than being silently lost.
+        for _, filler in pending:
+            out.append(f"ASSISTANT: {filler}")
+        return "\n".join(out)
+
     # Helper to save transcript log reliably in ALL call teardown scenarios
     _log_saved = False
     def save_transcript_to_db():
@@ -87,6 +119,14 @@ async def entrypoint(ctx: JobContext):
                     transcript += f"{msg.role.upper()}: {text_content}\n"
         except Exception:
             pass
+
+        # Fillers are spoken with add_to_chat_ctx=False so they never enter the
+        # LLM's context, but the caller did hear them, so splice them back in
+        # here to keep the saved transcript a faithful record of the call.
+        try:
+            transcript = _merge_fillers_into_transcript(transcript)
+        except Exception as e:
+            print(f"[FILLER MERGE ERROR] {e}")
 
         if transcript.strip():
             import urllib.request, json
@@ -154,15 +194,24 @@ async def entrypoint(ctx: JobContext):
     # Turn 1 is the reply to the greeting; turns 2-3 are the KYC answers
     # (DOB then Emirates ID / trade licence); everything after is conversational.
     VERIFY_TURNS = (2, 3)
-    _filler_state = {"turn": 0, "spoken_for_turn": -1}
+    _filler_state = {"turn": 0, "spoken_for_turn": -1, "fragments": []}
 
-    def _speak_filler(turn: int):
+    # Sarvam marks mid-sentence fragments as is_final, so one spoken date of
+    # birth can arrive as "X" / "book pay" / "2002". Firing on the first final
+    # plays the filler over the caller's own voice - it is spoken, logged, and
+    # inaudible. Wait this long for a follow-up final before deciding the turn
+    # really ended.
+    FILLER_DEBOUNCE = 0.6
+    _filler_task = {"t": None}
+
+    def _speak_filler(turn: int, trigger: str = ""):
         """Fire-and-forget a filler. Never let a filler failure break the call."""
         try:
             kind = "verify" if turn in VERIFY_TURNS else "neutral"
             pool = VERIFY_FILLERS if kind == "verify" else NEUTRAL_FILLERS
             text = pool[_filler_idx[kind] % len(pool)]
             _filler_idx[kind] += 1
+            _spoken_fillers.append((trigger, text))
             print(f"[FILLER] {text}")
             # allow_interruptions=True so the caller can talk over the filler;
             # it is only a placeholder, never information they need to hear.
@@ -178,21 +227,43 @@ async def entrypoint(ctx: JobContext):
         if not ev.is_final:
             return
 
-        # One filler per user turn, and only once the greeting is done — the
-        # greeting is not a reply to anything, so acknowledging it makes no sense.
-        _filler_state["turn"] += 1
+        # A later fragment of the same utterance cancels the pending filler, so
+        # only the last final in a burst speaks — and only once the caller has
+        # actually stopped. Fragments accumulate into one utterance rather than
+        # counting as separate turns, since "X" / "book pay" / "2002" is one
+        # spoken date of birth, not three answers.
+        pending = _filler_task["t"]
+        if pending and not pending.done():
+            pending.cancel()
+            _filler_state["fragments"].append(ev.transcript)
+        else:
+            _filler_state["fragments"] = [ev.transcript]
+            _filler_state["turn"] += 1
+
+        # Turn 1 is the reply to the greeting, which is not a reply to anything
+        # the agent asked, so acknowledging it makes no sense.
         if _filler_state["turn"] <= 1:
             return
-        if _filler_state["spoken_for_turn"] == _filler_state["turn"]:
-            return
 
-        # Single-word replies ("yes", "no") are answered fast enough that a filler
-        # would add delay rather than hide it.
-        if len(ev.transcript.split()) < 2:
-            return
+        turn_at_schedule = _filler_state["turn"]
+        utterance = " ".join(_filler_state["fragments"]).strip()
 
-        _filler_state["spoken_for_turn"] = _filler_state["turn"]
-        _speak_filler(_filler_state["turn"])
+        async def _fire_after_debounce():
+            try:
+                await asyncio.sleep(FILLER_DEBOUNCE)
+            except asyncio.CancelledError:
+                return
+            # Single-word replies ("yes", "no") are answered fast enough that a
+            # filler would add delay rather than hide it. Checked after the
+            # debounce, on the combined utterance.
+            if len(utterance.split()) < 2:
+                return
+            if _filler_state["spoken_for_turn"] == turn_at_schedule:
+                return
+            _filler_state["spoken_for_turn"] = turn_at_schedule
+            _speak_filler(turn_at_schedule, utterance)
+
+        _filler_task["t"] = asyncio.create_task(_fire_after_debounce())
 
     @session.on("agent_speech_started")
     def _on_agent_speech(ev):
