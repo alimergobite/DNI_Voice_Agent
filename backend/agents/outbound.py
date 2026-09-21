@@ -132,23 +132,37 @@ async def entrypoint(ctx: JobContext):
     # Without this the caller hears dead air, assumes the line dropped, and says
     # "hello?" — which barges in exactly as the agent finally starts speaking.
     # Saying a filler immediately keeps the line alive while the LLM generates.
-    # Deliberately neutral and minimal. The scripted reply that follows carries
-    # the real acknowledgement ("Got it, thank you."), so a filler that also
-    # acknowledges would make Aisha say it twice. These only signal "still here".
-    FILLERS = [
+    # Deliberately neutral: the scripted reply that follows carries the real
+    # acknowledgement ("Got it, thank you."), so a filler that also acknowledges
+    # would make Aisha say it twice.
+    #
+    # Stage-aware, because the script's next line differs by step. "One moment"
+    # implies looking something up: right before a KYC check, wrong before
+    # "That's great to hear!" (rating) or "No problem at all!" (review ask) —
+    # and actively jarring before "I'm really sorry to hear that."
+    VERIFY_FILLERS = [            # while a DOB / ID / licence check happens
         "Ok, one moment.",
         "Ok, just a second.",
-        "Ok, one moment.",
         "Right, one moment.",
     ]
-    _filler_idx = {"i": 0}
+    NEUTRAL_FILLERS = [           # rating, review ask, open feedback
+        "Ok.",
+        "Mm-hmm.",
+        "Right.",
+    ]
+    _filler_idx = {"verify": 0, "neutral": 0}
+    # Turn 1 is the reply to the greeting; turns 2-3 are the KYC answers
+    # (DOB then Emirates ID / trade licence); everything after is conversational.
+    VERIFY_TURNS = (2, 3)
     _filler_state = {"turn": 0, "spoken_for_turn": -1}
 
-    def _speak_filler():
+    def _speak_filler(turn: int):
         """Fire-and-forget a filler. Never let a filler failure break the call."""
         try:
-            text = FILLERS[_filler_idx["i"] % len(FILLERS)]
-            _filler_idx["i"] += 1
+            kind = "verify" if turn in VERIFY_TURNS else "neutral"
+            pool = VERIFY_FILLERS if kind == "verify" else NEUTRAL_FILLERS
+            text = pool[_filler_idx[kind] % len(pool)]
+            _filler_idx[kind] += 1
             print(f"[FILLER] {text}")
             # allow_interruptions=True so the caller can talk over the filler;
             # it is only a placeholder, never information they need to hear.
@@ -178,7 +192,7 @@ async def entrypoint(ctx: JobContext):
             return
 
         _filler_state["spoken_for_turn"] = _filler_state["turn"]
-        _speak_filler()
+        _speak_filler(_filler_state["turn"])
 
     @session.on("agent_speech_started")
     def _on_agent_speech(ev):
