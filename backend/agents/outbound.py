@@ -60,7 +60,13 @@ async def entrypoint(ctx: JobContext):
         min_endpointing_delay=0.5,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
-        preemptive_generation=True,
+        # Disabled: it starts the LLM on partial transcripts, then speaking a
+        # filler mutates the session and invalidates that work -
+        # "preemptive generation enabled but chat context or tools have changed
+        # after on_user_turn_completed" in the logs. LiveKit then regenerates
+        # and reorders the speech queue, which is what made fillers play after
+        # the reply instead of before it. The filler is now the latency mask.
+        preemptive_generation=False,
     )
 
     # Store start time and metadata for call logging
@@ -194,7 +200,7 @@ async def entrypoint(ctx: JobContext):
     # Turn 1 is the reply to the greeting; turns 2-3 are the KYC answers
     # (DOB then Emirates ID / trade licence); everything after is conversational.
     VERIFY_TURNS = (2, 3)
-    _filler_state = {"turn": 0, "spoken_for_turn": -1, "fragments": []}
+    _filler_state = {"turn": 0, "spoken_for_turn": -1, "fragments": [], "last_final_at": 0.0}
 
     # Sarvam marks mid-sentence fragments as is_final, so one spoken date of
     # birth can arrive as "X" / "book pay" / "2002". Firing on the first final
@@ -208,9 +214,18 @@ async def entrypoint(ctx: JobContext):
     # The FILLER_COOLDOWN below is what protects against a mid-answer pause
     # firing a second filler; the debounce only has to catch fast fragments.
     FILLER_DEBOUNCE = 0.35
-    # Backstop for the same problem: never speak two fillers in quick
-    # succession, however the transcripts arrive.
-    FILLER_COOLDOWN = 4.0
+    # Two different windows, previously conflated into one 4s value.
+    #
+    # FRAGMENT_WINDOW: a final arriving this soon after the last one is the
+    # rest of the same answer ("Hmm" / "One" / "2, 3, 4"), so merge it. The
+    # caller's next real answer is always further away than this, because the
+    # agent has to ask the next question first.
+    FRAGMENT_WINDOW = 1.5
+    # FILLER_COOLDOWN: never speak two fillers closer together than this,
+    # whatever the transcripts do. A backstop only - it must not be used to
+    # decide what counts as a new turn, or a genuine next answer arriving
+    # within it gets swallowed and its filler fires late.
+    FILLER_COOLDOWN = 2.0
     _filler_task = {"t": None}
     _last_filler_at = {"t": 0.0}
 
@@ -243,11 +258,17 @@ async def entrypoint(ctx: JobContext):
         # counting as separate turns, since "X" / "book pay" / "2002" is one
         # spoken date of birth, not three answers.
         pending = _filler_task["t"]
-        recently_spoke = (time.time() - _last_filler_at["t"]) < FILLER_COOLDOWN
-        if (pending and not pending.done()) or recently_spoke:
-            # Either the debounce is still open, or we spoke so recently that
-            # this is almost certainly the rest of the same answer rather than
-            # a new one.
+        now = time.time()
+        # Continuation of the same answer if the debounce is still open, or if
+        # the previous final was very recent. Measured from the last TRANSCRIPT,
+        # not the last filler: the agent speaks a whole question between real
+        # answers, so a genuine new answer is never this close.
+        is_fragment = (pending and not pending.done()) or (
+            (now - _filler_state["last_final_at"]) < FRAGMENT_WINDOW
+        )
+        _filler_state["last_final_at"] = now
+
+        if is_fragment:
             if pending and not pending.done():
                 pending.cancel()
             _filler_state["fragments"].append(ev.transcript)
