@@ -186,11 +186,16 @@ async def entrypoint(ctx: JobContext):
     # play over the caller or immediately after Aisha's own question.
     FILLER_DELAY = 1.5
 
+    # Slugs of the pre-rendered clips in backend/fillers/, played by the Twilio
+    # bridge. NOT spoken through session.say(): LiveKit's scheduler queued those
+    # behind the LLM reply, and the filler's own echo tripped VAD into cutting
+    # the agent off mid-word. Writing pre-rendered mulaw straight to the phone
+    # socket bypasses the scheduler and changes no LiveKit state.
     FILLERS = [
-        "One moment.",
-        "Just a second.",
-        "Checking.",
-        "Okay.",
+        ("one_moment", "One moment."),
+        ("just_a_second", "Just a second."),
+        ("checking", "Let me check that."),
+        ("okay", "Okay."),
     ]
 
     _filler = {"i": 0, "task": None, "spoken": []}
@@ -211,14 +216,28 @@ async def entrypoint(ctx: JobContext):
             # filler now would talk over her.
             if session.agent_state == "speaking":
                 return
-            text = FILLERS[_filler["i"] % len(FILLERS)]
+            slug, text = FILLERS[_filler["i"] % len(FILLERS)]
             _filler["i"] += 1
             _filler["spoken"].append(text)
             print(f"[FILLER] {text}")
-            # allow_interruptions=True is required: an uninterruptible speech
-            # makes LiveKit discard the caller's incoming audio, which silenced
-            # the agent entirely.
-            session.say(text, allow_interruptions=True, add_to_chat_ctx=False)
+
+            # Hand off to the bridge, which writes the pre-rendered clip
+            # directly to the phone. Run in a thread so ~1s of playback never
+            # blocks the agent's event loop.
+            def _post():
+                import urllib.request
+                url = f"http://localhost:5000/api/play_filler/{ctx.room.name}?slug={slug}"
+                try:
+                    urllib.request.urlopen(url, data=b"", timeout=2)
+                except Exception:
+                    try:
+                        urllib.request.urlopen(
+                            url.replace(":5000", ":8000"), data=b"", timeout=2
+                        )
+                    except Exception as e:
+                        print(f"[FILLER] bridge unreachable: {e}")
+
+            await asyncio.to_thread(_post)
         except Exception as e:
             print(f"[FILLER ERROR] {e}")
 

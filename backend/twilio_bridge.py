@@ -18,6 +18,36 @@ router = APIRouter()
 # even if the frontend doesn't provide the call_sid.
 room_to_call_sid = {}
 
+# ── PRE-RENDERED FILLERS ──
+# Short acknowledgements ("One moment.") played while the LLM generates its
+# reply, which takes 4-6s. Speaking them through the agent's TTS did not work:
+# LiveKit's speech scheduler queued them behind the reply, and the filler's own
+# echo tripped VAD into treating it as a barge-in and cutting the agent off
+# mid-word. Playing pre-rendered mulaw straight down the Twilio socket avoids
+# both - the scheduler never sees it, and no LiveKit state changes.
+#
+# Regenerate with: python scripts/generate_fillers.py
+FILLERS_DIR = os.path.join(os.path.dirname(__file__), "fillers")
+FILLER_ORDER = ["one_moment", "just_a_second", "checking", "okay"]
+
+
+def _load_fillers() -> dict:
+    out = {}
+    for slug in FILLER_ORDER:
+        path = os.path.join(FILLERS_DIR, f"{slug}.ulaw")
+        try:
+            with open(path, "rb") as fh:
+                out[slug] = fh.read()
+        except FileNotFoundError:
+            print(f"[Filler] missing {path} - run scripts/generate_fillers.py")
+    return out
+
+
+FILLER_AUDIO = _load_fillers()
+
+# room_name -> callable that plays a filler on that call's socket.
+room_filler_player = {}
+
 @router.post("/api/twiml/{room_name}")
 async def twiml_callback(room_name: str, request: Request):
     """Twilio hits this URL ONLY when the call is answered (or human detected)."""
@@ -160,6 +190,17 @@ async def is_room_active_endpoint(room_name: str):
     # If the room is still in the map, it's active. Once killed or finished, it's removed.
     return {"active": room_name in room_to_call_sid}
 
+
+@router.post("/api/play_filler/{room_name}")
+async def play_filler_endpoint(room_name: str, slug: str = "one_moment"):
+    """Play a pre-rendered filler on a live call. Called by the agent."""
+    player = room_filler_player.get(room_name)
+    if not player:
+        return {"status": "no_active_call"}
+    # Fire and forget: the agent must not wait for ~1s of playback.
+    asyncio.create_task(player(slug))
+    return {"status": "playing", "slug": slug}
+
 @router.websocket("/ws/twilio/{room_name}")
 async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
     await websocket.accept()
@@ -184,6 +225,38 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
 
         stream_sid_box = {"sid": None}
         agent_started = False
+
+        # Set while a pre-rendered filler is playing, so the agent's own audio
+        # does not interleave with it and garble both.
+        filler_playing = {"v": False}
+
+        async def play_filler(slug: str) -> None:
+            """Write a pre-rendered filler straight to Twilio, paced at 20ms."""
+            audio = FILLER_AUDIO.get(slug)
+            if not audio or stream_sid_box["sid"] is None or filler_playing["v"]:
+                return
+            filler_playing["v"] = True
+            try:
+                # Pace the frames: Twilio plays them as they arrive, so sending
+                # the whole buffer at once would overrun its jitter buffer.
+                next_at = time.monotonic()
+                for i in range(0, len(audio) - 159, 160):
+                    chunk = audio[i:i + 160]
+                    await websocket.send_text(json.dumps({
+                        "event": "media",
+                        "streamSid": stream_sid_box["sid"],
+                        "media": {"payload": base64.b64encode(chunk).decode("utf-8")},
+                    }))
+                    next_at += 0.02
+                    delay = next_at - time.monotonic()
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+            except Exception as e:
+                print(f"[Filler] playback error: {e}")
+            finally:
+                filler_playing["v"] = False
+
+        room_filler_player[room_name] = play_filler
 
         async def process_agent_audio(audio_stream: rtc.AudioStream):
             print("[Twilio Bridge] process_agent_audio task started")
@@ -234,6 +307,10 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                 try:
                     last_frame_at["t"] = time.monotonic()
                     if stream_sid_box["sid"] is None:
+                        continue
+                    if filler_playing["v"]:
+                        # A filler owns the socket for its ~1s; mixing the
+                        # agent's frames in would garble both.
                         continue
 
                     frame = event.frame
@@ -352,6 +429,7 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
         import traceback
         traceback.print_exc()
     finally:
+        room_filler_player.pop(room_name, None)
         if agent_audio_task and not agent_audio_task.done():
             agent_audio_task.cancel()
         await room.disconnect()
