@@ -232,6 +232,14 @@ async def entrypoint(ctx: JobContext):
     FILLER_COOLDOWN = 2.0
     _filler_task = {"t": None}
     _last_filler_at = {"t": 0.0}
+    # True while Aisha is talking. Her own audio echoes back down the phone
+    # line and gets transcribed, so any "final" arriving now is her, not the
+    # caller.
+    _agent_speaking = {"v": False}
+
+    @session.on("agent_state_changed")
+    def _on_agent_state(ev):
+        _agent_speaking["v"] = ev.new_state == "speaking"
 
     def _speak_filler(turn: int, trigger: str = ""):
         """Fire-and-forget a filler. Never let a filler failure break the call."""
@@ -258,6 +266,13 @@ async def entrypoint(ctx: JobContext):
         print(f"[STT HEARD] \"{ev.transcript}\" (is_final={ev.is_final})")
 
         if not ev.is_final:
+            return
+
+        # The agent's own question bleeds back through the phone line and gets
+        # transcribed, which fired a filler immediately after Aisha finished
+        # asking - before the caller had said anything. A real answer only ever
+        # arrives once she has stopped speaking.
+        if _agent_speaking["v"]:
             return
 
         # A later fragment of the same utterance cancels the pending filler, so
