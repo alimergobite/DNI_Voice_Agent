@@ -201,8 +201,16 @@ async def entrypoint(ctx: JobContext):
     # plays the filler over the caller's own voice - it is spoken, logged, and
     # inaudible. Wait this long for a follow-up final before deciding the turn
     # really ended.
-    FILLER_DEBOUNCE = 0.6
+    # 0.6s was too short: callers pause mid-answer for longer than that, so
+    # "Hmm" / "One" / "2, 3, 4" expired the debounce twice and fired two
+    # fillers for one Emirates ID. 1.2s covers a natural mid-answer pause
+    # while still landing well inside the LLM's 3-5s.
+    FILLER_DEBOUNCE = 1.2
+    # Backstop for the same problem: never speak two fillers in quick
+    # succession, however the transcripts arrive.
+    FILLER_COOLDOWN = 4.0
     _filler_task = {"t": None}
+    _last_filler_at = {"t": 0.0}
 
     def _speak_filler(turn: int, trigger: str = ""):
         """Fire-and-forget a filler. Never let a filler failure break the call."""
@@ -233,8 +241,13 @@ async def entrypoint(ctx: JobContext):
         # counting as separate turns, since "X" / "book pay" / "2002" is one
         # spoken date of birth, not three answers.
         pending = _filler_task["t"]
-        if pending and not pending.done():
-            pending.cancel()
+        recently_spoke = (time.time() - _last_filler_at["t"]) < FILLER_COOLDOWN
+        if (pending and not pending.done()) or recently_spoke:
+            # Either the debounce is still open, or we spoke so recently that
+            # this is almost certainly the rest of the same answer rather than
+            # a new one.
+            if pending and not pending.done():
+                pending.cancel()
             _filler_state["fragments"].append(ev.transcript)
         else:
             _filler_state["fragments"] = [ev.transcript]
@@ -260,7 +273,10 @@ async def entrypoint(ctx: JobContext):
                 return
             if _filler_state["spoken_for_turn"] == turn_at_schedule:
                 return
+            if (time.time() - _last_filler_at["t"]) < FILLER_COOLDOWN:
+                return
             _filler_state["spoken_for_turn"] = turn_at_schedule
+            _last_filler_at["t"] = time.time()
             _speak_filler(turn_at_schedule, utterance)
 
         _filler_task["t"] = asyncio.create_task(_fire_after_debounce())
