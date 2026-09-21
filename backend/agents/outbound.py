@@ -54,7 +54,10 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession(
         stt=get_stt_engine(),
         vad=custom_vad,
-        min_endpointing_delay=0.15,
+        # 0.15s was committing the turn before Sarvam finished transcribing,
+        # which fragmented replies mid-sentence and logged
+        # "transcript arrives after turn has been committed".
+        min_endpointing_delay=0.5,
         llm=get_llm_engine(),
         tts=get_tts_engine(tts_provider),
         preemptive_generation=True,
@@ -128,13 +131,15 @@ async def entrypoint(ctx: JobContext):
     # The LLM needs ~3-5s to produce its first token with the full KYC prompt.
     # Without this the caller hears dead air, assumes the line dropped, and says
     # "hello?" — which barges in exactly as the agent finally starts speaking.
-    # Saying a filler immediately keeps the line alive; the LLM finishes during
-    # the ~1.5s the filler takes to play, so its real answer follows seamlessly.
+    # Saying a filler immediately keeps the line alive while the LLM generates.
+    # Deliberately neutral and minimal. The scripted reply that follows carries
+    # the real acknowledgement ("Got it, thank you."), so a filler that also
+    # acknowledges would make Aisha say it twice. These only signal "still here".
     FILLERS = [
-        "Got it, let me just check that.",
-        "Okay, one moment please.",
-        "Sure, let me verify that for you.",
-        "Alright, just a second.",
+        "Ok, one moment.",
+        "Ok, just a second.",
+        "Ok, one moment.",
+        "Right, one moment.",
     ]
     _filler_idx = {"i": 0}
     _filler_state = {"turn": 0, "spoken_for_turn": -1}
