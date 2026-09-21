@@ -67,6 +67,18 @@ async def entrypoint(ctx: JobContext):
         # and reorders the speech queue, which is what made fillers play after
         # the reply instead of before it. The filler is now the latency mask.
         preemptive_generation=False,
+        # Fillers were being cut to 0.20-0.28s of their 0.63-1.31s, ending
+        # mid-sound at a third of peak volume, while Aisha's long sentences
+        # ended cleanly. The filler's own audio echoes back up the phone line,
+        # VAD hears it as the caller talking, and LiveKit stops the agent as a
+        # barge-in. Require a longer burst of speech - and more than one word -
+        # before treating it as a real interruption.
+        min_interruption_duration=0.7,
+        min_interruption_words=2,
+        # If an interruption turns out to be false (nothing transcribed),
+        # resume the speech that was cut instead of dropping it.
+        resume_false_interruption=True,
+        false_interruption_timeout=1.5,
     )
 
     # Store start time and metadata for call logging
