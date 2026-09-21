@@ -201,11 +201,13 @@ async def entrypoint(ctx: JobContext):
     # plays the filler over the caller's own voice - it is spoken, logged, and
     # inaudible. Wait this long for a follow-up final before deciding the turn
     # really ended.
-    # 0.6s was too short: callers pause mid-answer for longer than that, so
-    # "Hmm" / "One" / "2, 3, 4" expired the debounce twice and fired two
-    # fillers for one Emirates ID. 1.2s covers a natural mid-answer pause
-    # while still landing well inside the LLM's 3-5s.
-    FILLER_DEBOUNCE = 1.2
+    # session.say() queues behind any speech the session has already scheduled,
+    # so the filler must be queued BEFORE the turn commits and the LLM reply is
+    # scheduled - otherwise it plays after the reply, which is what a 1.2s
+    # debounce caused. min_endpointing_delay is 0.5s, so stay under that.
+    # The FILLER_COOLDOWN below is what protects against a mid-answer pause
+    # firing a second filler; the debounce only has to catch fast fragments.
+    FILLER_DEBOUNCE = 0.35
     # Backstop for the same problem: never speak two fillers in quick
     # succession, however the transcripts arrive.
     FILLER_COOLDOWN = 4.0
