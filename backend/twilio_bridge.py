@@ -3,6 +3,7 @@ import json
 import base64
 import audioop
 import asyncio
+import time
 import uuid
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -187,9 +188,51 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
         async def process_agent_audio(audio_stream: rtc.AudioStream):
             print("[Twilio Bridge] process_agent_audio task started")
             out_buffer = bytearray()
-            
+
+            # mulaw silence is 0xFF, not 0x00.
+            MULAW_SILENCE = b"\xff"
+
+            async def flush_tail():
+                """Send whatever is left, padded to a full 160-byte frame.
+
+                The loop below only emits complete 160-byte chunks, so up to
+                159 bytes stay behind when an utterance ends. During continuous
+                speech the next frames flush them, but a short isolated
+                utterance (a filler) ends with that tail stranded - it is
+                clipped, and the residue then prepends the NEXT utterance and
+                corrupts its opening. Pad and send instead.
+                """
+                nonlocal out_buffer
+                if not out_buffer or stream_sid_box["sid"] is None:
+                    return
+                chunk = bytes(out_buffer) + MULAW_SILENCE * (160 - len(out_buffer))
+                out_buffer = bytearray()
+                try:
+                    await websocket.send_text(json.dumps({
+                        "event": "media",
+                        "streamSid": stream_sid_box["sid"],
+                        "media": {"payload": base64.b64encode(chunk).decode("utf-8")},
+                    }))
+                except Exception as e:
+                    print(f"[Twilio Bridge] tail flush error: {e}")
+
+            # An utterance has ended when no frame arrives for a short while.
+            # 60ms is three 20ms frames - long enough not to trip mid-speech,
+            # short enough that the tail is not audibly delayed.
+            IDLE_FLUSH_AFTER = 0.06
+
+            async def flush_when_idle():
+                while True:
+                    await asyncio.sleep(IDLE_FLUSH_AFTER)
+                    if out_buffer and (time.monotonic() - last_frame_at["t"]) >= IDLE_FLUSH_AFTER:
+                        await flush_tail()
+
+            last_frame_at = {"t": time.monotonic()}
+            idle_task = asyncio.ensure_future(flush_when_idle())
+
             async for event in audio_stream:
                 try:
+                    last_frame_at["t"] = time.monotonic()
                     if stream_sid_box["sid"] is None:
                         continue
 
@@ -217,6 +260,9 @@ async def twilio_websocket_bridge(websocket: WebSocket, room_name: str):
                         await websocket.send_text(msg)
                 except Exception as e:
                     print(f"[Twilio Bridge] Frame drop error: {e}")
+
+            idle_task.cancel()
+            await flush_tail()
 
         # Helper to start processing agent audio
         def start_agent_audio(remote_track: rtc.Track):
