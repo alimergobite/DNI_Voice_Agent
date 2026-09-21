@@ -124,10 +124,56 @@ async def entrypoint(ctx: JobContext):
         room_input_options=room_input_options
     )
 
+    # ── LATENCY MASKING: speak a short acknowledgement while the LLM thinks ──
+    # The LLM needs ~3-5s to produce its first token with the full KYC prompt.
+    # Without this the caller hears dead air, assumes the line dropped, and says
+    # "hello?" — which barges in exactly as the agent finally starts speaking.
+    # Saying a filler immediately keeps the line alive; the LLM finishes during
+    # the ~1.5s the filler takes to play, so its real answer follows seamlessly.
+    FILLERS = [
+        "Got it, let me just check that.",
+        "Okay, one moment please.",
+        "Sure, let me verify that for you.",
+        "Alright, just a second.",
+    ]
+    _filler_idx = {"i": 0}
+    _filler_state = {"turn": 0, "spoken_for_turn": -1}
+
+    def _speak_filler():
+        """Fire-and-forget a filler. Never let a filler failure break the call."""
+        try:
+            text = FILLERS[_filler_idx["i"] % len(FILLERS)]
+            _filler_idx["i"] += 1
+            print(f"[FILLER] {text}")
+            # allow_interruptions=True so the caller can talk over the filler;
+            # it is only a placeholder, never information they need to hear.
+            session.say(text, allow_interruptions=True, add_to_chat_ctx=False)
+        except Exception as e:
+            print(f"[FILLER ERROR] {e}")
+
     # ── DIAGNOSTIC LOGGING: See exactly what Deepgram transcribes and what the LLM replies ──
     @session.on("user_input_transcribed")
     def _on_transcript(ev):
         print(f"[STT HEARD] \"{ev.transcript}\" (is_final={ev.is_final})")
+
+        if not ev.is_final:
+            return
+
+        # One filler per user turn, and only once the greeting is done — the
+        # greeting is not a reply to anything, so acknowledging it makes no sense.
+        _filler_state["turn"] += 1
+        if _filler_state["turn"] <= 1:
+            return
+        if _filler_state["spoken_for_turn"] == _filler_state["turn"]:
+            return
+
+        # Single-word replies ("yes", "no") are answered fast enough that a filler
+        # would add delay rather than hide it.
+        if len(ev.transcript.split()) < 2:
+            return
+
+        _filler_state["spoken_for_turn"] = _filler_state["turn"]
+        _speak_filler()
 
     @session.on("agent_speech_started")
     def _on_agent_speech(ev):
