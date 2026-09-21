@@ -238,9 +238,11 @@ async def entrypoint(ctx: JobContext):
             _filler_idx[kind] += 1
             _spoken_fillers.append((trigger, text))
             print(f"[FILLER] {text}")
-            # allow_interruptions=True so the caller can talk over the filler;
-            # it is only a placeholder, never information they need to hear.
-            session.say(text, allow_interruptions=True, add_to_chat_ctx=False)
+            # allow_interruptions=False: with True the agent's OWN reply cut the
+            # filler off a word or two in - the caller heard "Ok" but never
+            # "...one moment", and a bare "Ok." vanished entirely. These are
+            # half-second phrases, so letting them finish costs almost nothing.
+            session.say(text, allow_interruptions=False, add_to_chat_ctx=False)
         except Exception as e:
             print(f"[FILLER ERROR] {e}")
 
