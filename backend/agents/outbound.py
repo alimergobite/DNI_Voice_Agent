@@ -186,14 +186,18 @@ async def entrypoint(ctx: JobContext):
     # implies looking something up: right before a KYC check, wrong before
     # "That's great to hear!" (rating) or "No problem at all!" (review ask) —
     # and actively jarring before "I'm really sorry to hear that."
+    # Single words on purpose. The agent's own reply can truncate a filler once
+    # the LLM is ready, and a clipped "Ok, one moment." was heard as just "Ok"
+    # with the rest missing. A one-word filler either plays or does not - it
+    # cannot be heard as a fragment of itself.
     VERIFY_FILLERS = [            # while a DOB / ID / licence check happens
-        "Ok, one moment.",
-        "Ok, just a second.",
-        "Right, one moment.",
+        "Checking.",
+        "One moment.",
+        "Just a second.",
     ]
     NEUTRAL_FILLERS = [           # rating, review ask, open feedback
-        "Ok.",
-        "Mm-hmm.",
+        "Okay.",
+        "Sure.",
         "Right.",
     ]
     _filler_idx = {"verify": 0, "neutral": 0}
@@ -238,11 +242,13 @@ async def entrypoint(ctx: JobContext):
             _filler_idx[kind] += 1
             _spoken_fillers.append((trigger, text))
             print(f"[FILLER] {text}")
-            # allow_interruptions=False: with True the agent's OWN reply cut the
-            # filler off a word or two in - the caller heard "Ok" but never
-            # "...one moment", and a bare "Ok." vanished entirely. These are
-            # half-second phrases, so letting them finish costs almost nothing.
-            session.say(text, allow_interruptions=False, add_to_chat_ctx=False)
+            # Must stay True. With allow_interruptions=False the speech is
+            # marked uninterruptible, and LiveKit then DISCARDS incoming audio
+            # for its duration (substituting silence) - so the caller's next
+            # words were thrown away and the agent went silent after the
+            # filler. Truncation by the agent's own reply is the lesser evil;
+            # the short pool below keeps the clipped part small.
+            session.say(text, allow_interruptions=True, add_to_chat_ctx=False)
         except Exception as e:
             print(f"[FILLER ERROR] {e}")
 
