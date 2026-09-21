@@ -74,36 +74,23 @@ async def entrypoint(ctx: JobContext):
     global _last_metadata
     _last_metadata = metadata
 
-    # Fillers spoken during the call, as (user_text_that_triggered_it, filler).
-    # Kept out of session.history so the LLM never sees them; merged back into
-    # the saved transcript below so the log matches what the caller heard.
-    _spoken_fillers = []
-
     def _merge_fillers_into_transcript(transcript: str) -> str:
-        """Insert each filler after the USER line that triggered it."""
-        if not _spoken_fillers:
+        """Put each filler back after the USER line it followed.
+
+        Fillers are spoken with add_to_chat_ctx=False so they never reach the
+        LLM, but the caller did hear them, so the saved transcript should show
+        them. One filler follows each user turn, in order.
+        """
+        spoken = list(_filler["spoken"])
+        if not spoken:
             return transcript
 
-        pending = list(_spoken_fillers)
         out = []
         for line in transcript.split("\n"):
             out.append(line)
-            if not line.startswith("USER:"):
-                continue
-            said = line[len("USER:"):].strip()
-            for i, (trigger, filler) in enumerate(pending):
-                # STT may split one utterance across several finals, so the
-                # saved USER line can be longer than the fragment that fired
-                # the filler; match on containment either way.
-                if trigger and (trigger in said or said in trigger):
-                    out.append(f"ASSISTANT: {filler}")
-                    pending.pop(i)
-                    break
-
-        # Anything unmatched (e.g. the user line was dropped from history)
-        # still belongs in the record rather than being silently lost.
-        for _, filler in pending:
-            out.append(f"ASSISTANT: {filler}")
+            if line.startswith("USER:") and spoken:
+                out.append(f"ASSISTANT: {spoken.pop(0)}")
+        out.extend(f"ASSISTANT: {f}" for f in spoken)
         return "\n".join(out)
 
     # Helper to save transcript log reliably in ALL call teardown scenarios
@@ -173,159 +160,69 @@ async def entrypoint(ctx: JobContext):
         room_input_options=room_input_options
     )
 
-    # ── LATENCY MASKING: speak a short acknowledgement while the LLM thinks ──
-    # The LLM needs ~3-5s to produce its first token with the full KYC prompt.
-    # Without this the caller hears dead air, assumes the line dropped, and says
-    # "hello?" — which barges in exactly as the agent finally starts speaking.
-    # Saying a filler immediately keeps the line alive while the LLM generates.
-    # Deliberately neutral: the scripted reply that follows carries the real
-    # acknowledgement ("Got it, thank you."), so a filler that also acknowledges
-    # would make Aisha say it twice.
+    # ── LATENCY MASKING ──
+    # The LLM takes 4-6s to reply. Without this the caller hears dead air,
+    # assumes the call dropped, and says "hello?" - barging in just as Aisha
+    # finally speaks.
     #
-    # Stage-aware, because the script's next line differs by step. "One moment"
-    # implies looking something up: right before a KYC check, wrong before
-    # "That's great to hear!" (rating) or "No problem at all!" (review ask) —
-    # and actively jarring before "I'm really sorry to hear that."
-    # Single words on purpose. The agent's own reply can truncate a filler once
-    # the LLM is ready, and a clipped "Ok, one moment." was heard as just "Ok"
-    # with the rest missing. A one-word filler either plays or does not - it
-    # cannot be heard as a fragment of itself.
-    VERIFY_FILLERS = [            # while a DOB / ID / licence check happens
-        "Checking.",
+    # Timing: caller stops speaking -> FILLER_DELAY -> filler -> agent's reply.
+    #
+    # Triggered off user_state_changed (speaking -> listening), which is
+    # LiveKit's own "the caller has stopped" signal. Deliberately NOT off STT
+    # transcripts: those arrive fragmented mid-sentence and also fire on
+    # Aisha's own voice echoing back down the phone line, which made fillers
+    # play over the caller or immediately after Aisha's own question.
+    FILLER_DELAY = 1.5
+
+    FILLERS = [
         "One moment.",
         "Just a second.",
-    ]
-    NEUTRAL_FILLERS = [           # rating, review ask, open feedback
+        "Checking.",
         "Okay.",
-        "Sure.",
-        "Right.",
     ]
-    _filler_idx = {"verify": 0, "neutral": 0}
-    # Turn 1 is the reply to the greeting; turns 2-3 are the KYC answers
-    # (DOB then Emirates ID / trade licence); everything after is conversational.
-    VERIFY_TURNS = (2, 3)
-    _filler_state = {"turn": 0, "spoken_for_turn": -1, "fragments": [], "last_final_at": 0.0}
 
-    # Sarvam marks mid-sentence fragments as is_final, so one spoken date of
-    # birth can arrive as "X" / "book pay" / "2002". Firing on the first final
-    # plays the filler over the caller's own voice - it is spoken, logged, and
-    # inaudible. Wait this long for a follow-up final before deciding the turn
-    # really ended.
-    # session.say() queues behind any speech the session has already scheduled,
-    # so the filler must be queued BEFORE the turn commits and the LLM reply is
-    # scheduled - otherwise it plays after the reply, which is what a 1.2s
-    # debounce caused. min_endpointing_delay is 0.5s, so stay under that.
-    # The FILLER_COOLDOWN below is what protects against a mid-answer pause
-    # firing a second filler; the debounce only has to catch fast fragments.
-    FILLER_DEBOUNCE = 0.35
-    # Two different windows, previously conflated into one 4s value.
-    #
-    # FRAGMENT_WINDOW: a final arriving this soon after the last one is the
-    # rest of the same answer ("Hmm" / "One" / "2, 3, 4"), so merge it. The
-    # caller's next real answer is always further away than this, because the
-    # agent has to ask the next question first.
-    FRAGMENT_WINDOW = 1.5
-    # FILLER_COOLDOWN: never speak two fillers closer together than this,
-    # whatever the transcripts do. A backstop only - it must not be used to
-    # decide what counts as a new turn, or a genuine next answer arriving
-    # within it gets swallowed and its filler fires late.
-    FILLER_COOLDOWN = 2.0
-    _filler_task = {"t": None}
-    _last_filler_at = {"t": 0.0}
-    # True while Aisha is talking. Her own audio echoes back down the phone
-    # line and gets transcribed, so any "final" arriving now is her, not the
-    # caller.
-    _agent_speaking = {"v": False}
+    _filler = {"i": 0, "task": None, "spoken": []}
 
-    @session.on("agent_state_changed")
-    def _on_agent_state(ev):
-        _agent_speaking["v"] = ev.new_state == "speaking"
+    def _cancel_pending_filler():
+        t = _filler["task"]
+        if t and not t.done():
+            t.cancel()
+        _filler["task"] = None
 
-    def _speak_filler(turn: int, trigger: str = ""):
-        """Fire-and-forget a filler. Never let a filler failure break the call."""
+    async def _speak_filler_after_delay():
         try:
-            kind = "verify" if turn in VERIFY_TURNS else "neutral"
-            pool = VERIFY_FILLERS if kind == "verify" else NEUTRAL_FILLERS
-            text = pool[_filler_idx[kind] % len(pool)]
-            _filler_idx[kind] += 1
-            _spoken_fillers.append((trigger, text))
+            await asyncio.sleep(FILLER_DELAY)
+        except asyncio.CancelledError:
+            return
+        try:
+            # If Aisha already started replying, the gap is filled - adding a
+            # filler now would talk over her.
+            if session.agent_state == "speaking":
+                return
+            text = FILLERS[_filler["i"] % len(FILLERS)]
+            _filler["i"] += 1
+            _filler["spoken"].append(text)
             print(f"[FILLER] {text}")
-            # Must stay True. With allow_interruptions=False the speech is
-            # marked uninterruptible, and LiveKit then DISCARDS incoming audio
-            # for its duration (substituting silence) - so the caller's next
-            # words were thrown away and the agent went silent after the
-            # filler. Truncation by the agent's own reply is the lesser evil;
-            # the short pool below keeps the clipped part small.
+            # allow_interruptions=True is required: an uninterruptible speech
+            # makes LiveKit discard the caller's incoming audio, which silenced
+            # the agent entirely.
             session.say(text, allow_interruptions=True, add_to_chat_ctx=False)
         except Exception as e:
             print(f"[FILLER ERROR] {e}")
 
-    # ── DIAGNOSTIC LOGGING: See exactly what Deepgram transcribes and what the LLM replies ──
+    @session.on("user_state_changed")
+    def _on_user_state(ev):
+        if ev.new_state == "speaking":
+            # Caller started talking - drop any filler still waiting to play.
+            _cancel_pending_filler()
+        elif ev.new_state == "listening":
+            # Caller just stopped: start the clock.
+            _cancel_pending_filler()
+            _filler["task"] = asyncio.create_task(_speak_filler_after_delay())
+
     @session.on("user_input_transcribed")
     def _on_transcript(ev):
         print(f"[STT HEARD] \"{ev.transcript}\" (is_final={ev.is_final})")
-
-        if not ev.is_final:
-            return
-
-        # The agent's own question bleeds back through the phone line and gets
-        # transcribed, which fired a filler immediately after Aisha finished
-        # asking - before the caller had said anything. A real answer only ever
-        # arrives once she has stopped speaking.
-        if _agent_speaking["v"]:
-            return
-
-        # A later fragment of the same utterance cancels the pending filler, so
-        # only the last final in a burst speaks — and only once the caller has
-        # actually stopped. Fragments accumulate into one utterance rather than
-        # counting as separate turns, since "X" / "book pay" / "2002" is one
-        # spoken date of birth, not three answers.
-        pending = _filler_task["t"]
-        now = time.time()
-        # Continuation of the same answer if the debounce is still open, or if
-        # the previous final was very recent. Measured from the last TRANSCRIPT,
-        # not the last filler: the agent speaks a whole question between real
-        # answers, so a genuine new answer is never this close.
-        is_fragment = (pending and not pending.done()) or (
-            (now - _filler_state["last_final_at"]) < FRAGMENT_WINDOW
-        )
-        _filler_state["last_final_at"] = now
-
-        if is_fragment:
-            if pending and not pending.done():
-                pending.cancel()
-            _filler_state["fragments"].append(ev.transcript)
-        else:
-            _filler_state["fragments"] = [ev.transcript]
-            _filler_state["turn"] += 1
-
-        # Turn 1 is the reply to the greeting, which is not a reply to anything
-        # the agent asked, so acknowledging it makes no sense.
-        if _filler_state["turn"] <= 1:
-            return
-
-        turn_at_schedule = _filler_state["turn"]
-        utterance = " ".join(_filler_state["fragments"]).strip()
-
-        async def _fire_after_debounce():
-            try:
-                await asyncio.sleep(FILLER_DEBOUNCE)
-            except asyncio.CancelledError:
-                return
-            # Single-word replies ("yes", "no") are answered fast enough that a
-            # filler would add delay rather than hide it. Checked after the
-            # debounce, on the combined utterance.
-            if len(utterance.split()) < 2:
-                return
-            if _filler_state["spoken_for_turn"] == turn_at_schedule:
-                return
-            if (time.time() - _last_filler_at["t"]) < FILLER_COOLDOWN:
-                return
-            _filler_state["spoken_for_turn"] = turn_at_schedule
-            _last_filler_at["t"] = time.time()
-            _speak_filler(turn_at_schedule, utterance)
-
-        _filler_task["t"] = asyncio.create_task(_fire_after_debounce())
 
     @session.on("agent_speech_started")
     def _on_agent_speech(ev):
