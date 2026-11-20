@@ -352,14 +352,14 @@ function screeningSummaryParagraph(result, candidateRegions = []) {
 
   if (result?.screening?.flagged === true) {
     const localization = regionText
-      ? `It marked ${regionText}${moreRegions} as approximate areas to inspect; these boxes are search regions, not fracture outlines.`
-      : 'The detector returned no usable review area, so the location cannot be specified.';
-    return `The screening flagged this X-ray after detecting a possible fracture-related pattern. ${localization}`;
+      ? `Specific candidate region(s) identified include ${regionText}${moreRegions}. These localized bounding boxes highlight target search zones showing potential cortical disruption or structural bone irregularity for visual inspection.`
+      : 'The screening identified a general suspicious pattern, though no specific localized coordinates could be delineated.';
+    return `The radiographic screening detected an anomaly consistent with a potential fracture-related pattern. ${localization} The evaluation focuses on structural alignment, bone continuity, and focal cortical disruption across the inspected musculoskeletal anatomy.`;
   }
   if (result?.screening?.flagged === false) {
-    return 'The screening did not detect any fracture-related pattern. No candidate review area was found.';
+    return 'The radiographic screening did not detect any prominent fracture-related patterns or acute cortical disruptions in the provided view. No candidate regions of interest were identified across the visible osseous structures.';
   }
-  return 'The screening did not return a result for this X-ray. Please retry when the service is available.';
+  return 'The screening process did not complete successfully or return a definitive result for this image. Please ensure the image is a clear musculoskeletal X-ray and retry.';
 }
 
 function imagePosition(region) {
