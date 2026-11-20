@@ -350,6 +350,11 @@ function screeningSummaryParagraph(result, candidateRegions = []) {
     .join(' and ');
   const moreRegions = regions.length > listedRegions.length ? ' and other candidate areas' : '';
 
+  if (result?.summary) {
+    const loc = regionText ? ` Marked candidate area: ${regionText}${moreRegions}.` : '';
+    return `${result.summary}${loc}`;
+  }
+
   if (result?.screening?.flagged === true) {
     const localization = regionText
       ? `Specific candidate region(s) identified include ${regionText}${moreRegions}. These localized bounding boxes highlight target search zones showing potential cortical disruption or structural bone irregularity for visual inspection.`
