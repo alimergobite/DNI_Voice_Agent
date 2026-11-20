@@ -336,11 +336,6 @@ function displayRegion(region) {
 }
 
 function screeningSummaryParagraph(result, candidateRegions = []) {
-  const score = Number.isFinite(result?.screening?.score) ? result.screening.score.toFixed(3) : null;
-  const threshold = Number.isFinite(result?.screening?.threshold) ? result.screening.threshold.toFixed(4) : null;
-  const scoreText = score !== null && threshold !== null
-    ? `Screening score ${score}; research threshold ${threshold}; this score is not a calibrated probability.`
-    : '';
   const regions = candidateRegions
     .map(({ observation, index }) => ({
       id: regionLabel(index),
@@ -359,12 +354,12 @@ function screeningSummaryParagraph(result, candidateRegions = []) {
     const localization = regionText
       ? `It marked ${regionText}${moreRegions} as approximate areas to inspect; these boxes are search regions, not fracture outlines.`
       : 'The detector returned no usable review area, so the location cannot be specified.';
-    return `The FracAtlas screen flagged this X-ray for radiologist review after detecting a possible fracture-related pattern. ${scoreText ? `${scoreText} ` : ''}${localization} The model does not identify the bone or describe fracture type, extent, or displacement. A qualified radiologist should review the original views and clinical history to confirm the finding and guide care.`;
+    return `The screening flagged this X-ray after detecting a possible fracture-related pattern. ${localization}`;
   }
   if (result?.screening?.flagged === false) {
-    return `The FracAtlas screen did not flag this X-ray at its research threshold. ${scoreText ? `${scoreText} ` : ''}The detector returned no candidate review area, so this result does not point to a specific location or assess the bones individually. A below-threshold screen does not rule out a fracture, and the model can miss findings. If symptoms or clinical concern persist, a qualified radiologist should review the original X-ray views and clinical history; that review determines whether further assessment or care is needed.`;
+    return 'The screening did not detect any fracture-related pattern. No candidate review area was found.';
   }
-  return 'The fracture-screening model did not return a result for this X-ray, so it cannot say whether a fracture-related pattern was flagged or identify a review area. No screening score or candidate region is available. This is a processing failure, not a negative screen. Retry when the model service is available. If injury is suspected or symptoms persist, a qualified radiologist should review the original X-ray views and clinical history to determine the finding and guide care.';
+  return 'The screening did not return a result for this X-ray. Please retry when the service is available.';
 }
 
 function imagePosition(region) {
